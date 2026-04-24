@@ -1,141 +1,123 @@
+// app/dashboard/DashboardClient.jsx
 "use client";
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import Card from "@/components/ui/data/Card";
 import StatCard from "@/components/ui/data/StatCard";
 import Badge from "@/components/ui/data/Badge";
-import Avatar from "@/components/ui/data/Avatar";
 import Breadcrumb from "@/components/ui/navigation/Breadcrumb";
 import ProgressBar from "@/components/ui/feedback/ProgressBar";
-import { RatingDisplay } from "@/components/ui/form/RatingInput";
 
-// ─── DUMMY DATA ───────────────────────────────────────────────────
-const RECENT_TRANSACTIONS = [
-  {
-    id: "TRX-001",
-    customer: "Siti Aminah",
-    total: 87000,
-    items: 3,
-    status: "selesai",
-    time: "10 menit lalu",
-  },
-  {
-    id: "TRX-002",
-    customer: "Budi Santoso",
-    total: 45000,
-    items: 1,
-    status: "selesai",
-    time: "25 menit lalu",
-  },
-  {
-    id: "TRX-003",
-    customer: "Dewi Lestari",
-    total: 210000,
-    items: 5,
-    status: "proses",
-    time: "32 menit lalu",
-  },
-  {
-    id: "TRX-004",
-    customer: "Agus Wahyudi",
-    total: 32000,
-    items: 2,
-    status: "selesai",
-    time: "1 jam lalu",
-  },
-  {
-    id: "TRX-005",
-    customer: "Rina Susanti",
-    total: 125000,
-    items: 4,
-    status: "batal",
-    time: "1 jam lalu",
-  },
-];
+const formatRupiah = (n) => "Rp " + Number(n || 0).toLocaleString("id-ID");
 
-const TOP_PRODUCTS = [
-  {
-    name: "Sunscreen Azarine SPF 45",
-    category: "Kecantikan",
-    sold: 55,
-    stock: 30,
-    revenue: 1925000,
-    image: "https://picsum.photos/seed/sunscreen/200",
-  },
-  {
-    name: "Shampo Dove Moisture 170ml",
-    category: "Perawatan",
-    sold: 62,
-    stock: 45,
-    revenue: 1116000,
-    image: "https://picsum.photos/seed/dove/200",
-  },
-  {
-    name: "Lipstik Matte Wardah No.20",
-    category: "Kecantikan",
-    sold: 48,
-    stock: 24,
-    revenue: 2160000,
-    image: "https://picsum.photos/seed/lip/200",
-  },
-  {
-    name: "Bedak Bayi Johnson's 50gr",
-    category: "Bayi",
-    sold: 41,
-    stock: 5,
-    revenue: 902000,
-    image: "https://picsum.photos/seed/baby/200",
-  },
-  {
-    name: "Serum Vit C Scarlett 40ml",
-    category: "Perawatan",
-    sold: 37,
-    stock: 12,
-    revenue: 2775000,
-    image: "https://picsum.photos/seed/serum/200",
-  },
-];
-
-const LOW_STOCK_ALERTS = [
-  { name: "Bedak Bayi Johnson's 50gr", stock: 5, minStock: 10, sku: "BBY-002" },
-  { name: "Pelembab Cetaphil 250ml", stock: 3, minStock: 5, sku: "PLB-007" },
-  { name: "Vitamin C Blackmores 60s", stock: 7, minStock: 5, sku: "VIT-010" },
-  {
-    name: "Toner Somethinc Niacinamide",
-    stock: 8,
-    minStock: 5,
-    sku: "TNR-006",
-  },
-];
-
-const SALES_BY_CATEGORY = [
-  { label: "Kecantikan", value: 6161000, pct: 38 },
-  { label: "Perawatan Tubuh", value: 5225000, pct: 32 },
-  { label: "Bayi", value: 2398000, pct: 15 },
-  { label: "Kesehatan", value: 2035000, pct: 13 },
-  { label: "Lainnya", value: 323000, pct: 2 },
-];
-
-const CATEGORY_COLORS = [
-  "primary",
-  "success",
-  "warning",
-  "danger",
-  "secondary",
-];
-
-const formatRupiah = (n) => "Rp " + Number(n).toLocaleString("id-ID");
-
-const STATUS_MAP = {
-  selesai: { label: "Selesai", variant: "success" },
-  proses: { label: "Proses", variant: "warning" },
-  batal: { label: "Batal", variant: "danger" },
+const formatDate = (d) => {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 };
 
+const formatDateTime = (d) => {
+  if (!d) return "—";
+  return new Date(d).toLocaleString("id-ID", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const ORDER_STATUS_CFG = {
+  pending: { label: "Menunggu", variant: "warning", icon: "fa-clock" },
+  confirmed: {
+    label: "Dikonfirmasi",
+    variant: "primary",
+    icon: "fa-circle-check",
+  },
+  done: { label: "Selesai", variant: "success", icon: "fa-bag-shopping" },
+  cancelled: { label: "Dibatalkan", variant: "danger", icon: "fa-xmark" },
+};
+
+const PAYMENT_STATUS_CFG = {
+  paid: { label: "Lunas", variant: "success" },
+  unpaid: { label: "Belum Bayar", variant: "danger" },
+  partial: { label: "Sebagian", variant: "warning" },
+};
+
+const GROUP_CFG = {
+  vip: { label: "VIP", variant: "warning" },
+  reseller: { label: "Reseller", variant: "primary" },
+  member: { label: "Member", variant: "success" },
+  reguler: { label: "Reguler", variant: "secondary" },
+};
+
+const AVATAR_COLORS = [
+  "#E91E8C",
+  "#9C27B0",
+  "#2196F3",
+  "#4CAF50",
+  "#FF9800",
+  "#F44336",
+  "#00BCD4",
+  "#607D8B",
+];
+const getAvatarColor = (id) => AVATAR_COLORS[id % AVATAR_COLORS.length];
+const getInitials = (name) =>
+  (name || "?")
+    .split(" ")
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+// ─── SECTION HEADER ───────────────────────────────────────────────
+function SectionHeader({ icon, title, action }) {
+  return (
+    <div
+      style={{
+        padding: "14px 18px 12px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        borderBottom: "1px solid var(--color-border)",
+      }}
+    >
+      <h2
+        style={{
+          fontSize: 14,
+          fontWeight: 700,
+          color: "var(--color-text-primary)",
+          margin: 0,
+        }}
+      >
+        <i
+          className={`fa-solid ${icon}`}
+          style={{ marginRight: 8, color: "var(--color-primary)" }}
+        />
+        {title}
+      </h2>
+      {action}
+    </div>
+  );
+}
+
 // ─── MAIN CLIENT ──────────────────────────────────────────────────
-export default function DashboardClient({ user }) {
+export default function DashboardClient({ user, data }) {
   const router = useRouter();
+  const {
+    stats,
+    recentOrders,
+    topStyles,
+    ordersByStatus,
+    revenueByMonth,
+    pendingCount,
+    customerStats,
+    topCustomers,
+    allTime,
+  } = data;
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -152,8 +134,27 @@ export default function DashboardClient({ user }) {
     year: "numeric",
   });
 
+  // build status map from DB data
+  const statusMap = useMemo(() => {
+    const m = {};
+    (ordersByStatus || []).forEach((s) => {
+      m[s.status] = s;
+    });
+    return m;
+  }, [ordersByStatus]);
+
+  // revenue chart max for bar scaling
+  const maxRevenue = useMemo(
+    () => Math.max(...(revenueByMonth || []).map((m) => Number(m.revenue)), 1),
+    [revenueByMonth],
+  );
+
+  const margin = Number(allTime.total_margin || 0);
+  const revenue = Number(allTime.total_revenue || 0);
+  const marginPct = revenue > 0 ? Math.round((margin / revenue) * 100) : 0;
+
   return (
-    <DashboardLayout activeKey='home'>
+    <DashboardLayout activeKey='home' user={user}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {/* ── Header ── */}
         <div>
@@ -196,7 +197,7 @@ export default function DashboardClient({ user }) {
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button
-                onClick={() => router.push("/dashboard/products")}
+                onClick={() => router.push("/dashboard/orders")}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -211,13 +212,13 @@ export default function DashboardClient({ user }) {
                   fontWeight: 600,
                 }}
               >
-                <i className='fa-solid fa-plus' /> Tambah Produk
+                <i className='fa-solid fa-plus' /> Buat Pesanan
               </button>
             </div>
           </div>
         </div>
 
-        {/* ── Stat Cards ── */}
+        {/* ── Today Stat Cards ── */}
         <div
           style={{
             display: "grid",
@@ -227,275 +228,473 @@ export default function DashboardClient({ user }) {
         >
           <StatCard
             label='Pendapatan Hari Ini'
-            value={formatRupiah(499000)}
+            value={formatRupiah(stats.done_revenue ?? 0)}
             icon={<i className='fa-solid fa-sack-dollar' />}
             color='primary'
             footer={
-              <span style={{ fontSize: 11, color: "var(--color-success)" }}>
-                ↑ 12% vs kemarin
+              <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+                {stats.done_count ?? 0} pesanan selesai
               </span>
             }
           />
           <StatCard
-            label='Transaksi Hari Ini'
-            value={14}
+            label='Total Pesanan Hari Ini'
+            value={stats.total_orders ?? 0}
             icon={<i className='fa-solid fa-receipt' />}
             color='success'
             footer={
-              <span style={{ fontSize: 11, color: "var(--color-success)" }}>
-                ↑ 3 transaksi
+              <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+                {stats.pending_count ?? 0} menunggu konfirmasi
               </span>
             }
           />
           <StatCard
-            label='Produk Terjual'
-            value={38}
-            icon={<i className='fa-solid fa-bag-shopping' />}
+            label='Margin Hari Ini'
+            value={formatRupiah(stats.total_margin ?? 0)}
+            icon={<i className='fa-solid fa-chart-line' />}
             color='warning'
             footer={
               <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
-                dari 12 produk
+                dari pesanan selesai
               </span>
             }
           />
           <StatCard
-            label='Stok Perlu Diisi'
-            value={4}
-            icon={<i className='fa-solid fa-triangle-exclamation' />}
+            label='Pesanan Pending'
+            value={pendingCount}
+            icon={<i className='fa-solid fa-clock' />}
             color='danger'
             footer={
-              <button
-                type='button'
-                onClick={() => router.push("/dashboard/products")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "var(--color-danger)",
-                  fontSize: 11,
-                  padding: 0,
-                  fontFamily: "inherit",
-                }}
-              >
-                Lihat produk →
-              </button>
+              pendingCount > 0 ? (
+                <button
+                  type='button'
+                  onClick={() => router.push("/dashboard/orders")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--color-danger)",
+                    fontSize: 11,
+                    padding: 0,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Lihat pesanan →
+                </button>
+              ) : (
+                <span
+                  style={{ fontSize: 11, color: "var(--color-text-muted)" }}
+                >
+                  Semua beres 🎉
+                </span>
+              )
             }
           />
         </div>
 
-        {/* ── Middle Row: Transactions + Low Stock ── */}
+        {/* ── All-time summary strip ── */}
         <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 16 }}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 14,
+          }}
         >
-          {/* Recent Transactions */}
-          <Card padding='none'>
+          {[
+            {
+              label: "Total Pendapatan",
+              value: formatRupiah(allTime.total_revenue ?? 0),
+              icon: "fa-wallet",
+              color: "var(--color-primary)",
+            },
+            {
+              label: "Total Biaya Produksi",
+              value: formatRupiah(allTime.total_cost ?? 0),
+              icon: "fa-scissors",
+              color: "var(--color-warning)",
+            },
+            {
+              label: "Total Margin",
+              value: formatRupiah(allTime.total_margin ?? 0),
+              icon: "fa-arrow-trend-up",
+              color:
+                margin >= 0 ? "var(--color-success)" : "var(--color-danger)",
+            },
+            {
+              label: "Margin %",
+              value: `${marginPct}%`,
+              icon: "fa-percent",
+              color:
+                marginPct >= 30
+                  ? "var(--color-success)"
+                  : "var(--color-warning)",
+            },
+          ].map((item, i) => (
             <div
+              key={i}
               style={{
-                padding: "16px 18px 12px",
+                padding: "14px 16px",
+                borderRadius: "var(--radius-lg)",
+                background: "var(--color-bg-primary)",
+                border: "1px solid var(--color-border)",
                 display: "flex",
-                justifyContent: "space-between",
                 alignItems: "center",
-                borderBottom: "1px solid var(--color-border)",
+                gap: 12,
               }}
             >
-              <h2
+              <div
                 style={{
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: "var(--color-text-primary)",
-                  margin: 0,
+                  width: 40,
+                  height: 40,
+                  borderRadius: "var(--radius-md)",
+                  background: "var(--color-bg-subtle)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
                 }}
               >
                 <i
-                  className='fa-solid fa-clock-rotate-left'
-                  style={{ marginRight: 8, color: "var(--color-primary)" }}
+                  className={`fa-solid ${item.icon}`}
+                  style={{ color: item.color, fontSize: 16 }}
                 />
-                Transaksi Terbaru
-              </h2>
-              <button
-                type='button'
-                onClick={() => router.push("/dashboard/transactions")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "var(--color-primary)",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  padding: 0,
-                  fontFamily: "inherit",
-                }}
-              >
-                Lihat semua →
-              </button>
-            </div>
-            <div>
-              {RECENT_TRANSACTIONS.map((trx, i) => (
+              </div>
+              <div>
                 <div
-                  key={trx.id}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "12px 18px",
-                    borderBottom:
-                      i < RECENT_TRANSACTIONS.length - 1
-                        ? "1px solid var(--color-border)"
-                        : "none",
+                    fontSize: 11,
+                    color: "var(--color-text-muted)",
+                    marginBottom: 3,
                   }}
                 >
+                  {item.label}
+                </div>
+                <div
+                  style={{ fontSize: 15, fontWeight: 700, color: item.color }}
+                >
+                  {item.value}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Middle Row: Recent Orders + Customer Stats ── */}
+        <div
+          style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 16 }}
+        >
+          {/* Recent Orders */}
+          <Card padding='none'>
+            <SectionHeader
+              icon='fa-clock-rotate-left'
+              title='Pesanan Terbaru'
+              action={
+                <button
+                  type='button'
+                  onClick={() => router.push("/dashboard/orders")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--color-primary)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: 0,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Lihat semua →
+                </button>
+              }
+            />
+            {recentOrders.length === 0 ? (
+              <div
+                style={{
+                  padding: "32px 18px",
+                  textAlign: "center",
+                  color: "var(--color-text-muted)",
+                  fontSize: 13,
+                }}
+              >
+                <i
+                  className='fa-solid fa-receipt'
+                  style={{ fontSize: 24, marginBottom: 8, display: "block" }}
+                />
+                Belum ada pesanan
+              </div>
+            ) : (
+              recentOrders.map((order, i) => {
+                const statusCfg = ORDER_STATUS_CFG[order.status] ?? {
+                  label: order.status,
+                  variant: "secondary",
+                  icon: "fa-circle",
+                };
+                const payCfg = PAYMENT_STATUS_CFG[order.payment_status] ?? {
+                  label: order.payment_status,
+                  variant: "secondary",
+                };
+                return (
                   <div
+                    key={order.id}
                     style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: "50%",
-                      background: "var(--color-bg-subtle)",
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
+                      gap: 12,
+                      padding: "11px 18px",
+                      borderBottom:
+                        i < recentOrders.length - 1
+                          ? "1px solid var(--color-border)"
+                          : "none",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => router.push("/dashboard/orders")}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background =
+                        "var(--color-bg-subtle)")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
+                  >
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: "50%",
+                        background: getAvatarColor(order.id),
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "white",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {getInitials(order.customer_name)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: "var(--color-text-primary)",
+                        }}
+                      >
+                        {order.customer_name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "var(--color-text-muted)",
+                        }}
+                      >
+                        {order.code} · {formatDateTime(order.created_at)}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: "var(--color-primary)",
+                        }}
+                      >
+                        {formatRupiah(order.final_total)}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 4,
+                          justifyContent: "flex-end",
+                          marginTop: 3,
+                        }}
+                      >
+                        <Badge variant={statusCfg.variant} size='sm' dot>
+                          {statusCfg.label}
+                        </Badge>
+                        <Badge variant={payCfg.variant} size='sm'>
+                          {payCfg.label}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </Card>
+
+          {/* Customer Stats */}
+          <Card padding='none'>
+            <SectionHeader
+              icon='fa-users'
+              title='Pelanggan'
+              action={
+                <button
+                  type='button'
+                  onClick={() => router.push("/dashboard/customers")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--color-primary)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: 0,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Lihat semua →
+                </button>
+              }
+            />
+
+            {/* summary row */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 1,
+                borderBottom: "1px solid var(--color-border)",
+              }}
+            >
+              {[
+                {
+                  label: "Total",
+                  value: customerStats.total ?? 0,
+                  icon: "fa-users",
+                  color: "var(--color-primary)",
+                },
+                {
+                  label: "Aktif",
+                  value: customerStats.active ?? 0,
+                  icon: "fa-circle-check",
+                  color: "var(--color-success)",
+                },
+                {
+                  label: "VIP",
+                  value: customerStats.vip ?? 0,
+                  icon: "fa-crown",
+                  color: "var(--color-warning)",
+                },
+                {
+                  label: "Reseller",
+                  value: customerStats.reseller ?? 0,
+                  icon: "fa-store",
+                  color: "var(--color-danger)",
+                },
+              ].map((s, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: "12px 16px",
+                    textAlign: "center",
+                    borderRight:
+                      i % 2 === 0 ? "1px solid var(--color-border)" : "none",
+                    borderBottom:
+                      i < 2 ? "1px solid var(--color-border)" : "none",
+                  }}
+                >
+                  <i
+                    className={`fa-solid ${s.icon}`}
+                    style={{
+                      color: s.color,
                       fontSize: 14,
-                      color: "var(--color-primary)",
-                      flexShrink: 0,
+                      marginBottom: 4,
+                      display: "block",
+                    }}
+                  />
+                  <div
+                    style={{
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: "var(--color-text-primary)",
                     }}
                   >
-                    <i className='fa-solid fa-user' />
+                    {s.value}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: "var(--color-text-primary)",
-                      }}
-                    >
-                      {trx.customer}
-                    </div>
-                    <div
-                      style={{ fontSize: 11, color: "var(--color-text-muted)" }}
-                    >
-                      {trx.id} · {trx.items} item · {trx.time}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        color: "var(--color-text-primary)",
-                      }}
-                    >
-                      {formatRupiah(trx.total)}
-                    </div>
-                    <Badge
-                      variant={STATUS_MAP[trx.status].variant}
-                      size='sm'
-                      dot
-                    >
-                      {STATUS_MAP[trx.status].label}
-                    </Badge>
+                  <div
+                    style={{ fontSize: 11, color: "var(--color-text-muted)" }}
+                  >
+                    {s.label}
                   </div>
                 </div>
               ))}
             </div>
-          </Card>
 
-          {/* Low Stock Alerts */}
-          <Card padding='none'>
-            <div
-              style={{
-                padding: "16px 18px 12px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                borderBottom: "1px solid var(--color-border)",
-              }}
-            >
-              <h2
+            {/* top customers */}
+            <div style={{ padding: "10px 0" }}>
+              <div
                 style={{
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: "var(--color-text-primary)",
-                  margin: 0,
+                  padding: "6px 16px 8px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: ".04em",
+                  color: "var(--color-text-muted)",
                 }}
               >
-                <i
-                  className='fa-solid fa-bell'
-                  style={{ marginRight: 8, color: "var(--color-warning)" }}
-                />
-                Peringatan Stok
-              </h2>
-              <Badge variant='warning' size='sm'>
-                {LOW_STOCK_ALERTS.length} produk
-              </Badge>
-            </div>
-            <div>
-              {LOW_STOCK_ALERTS.map((item, i) => {
-                const pct = Math.round(
-                  (item.stock / (item.minStock * 2)) * 100,
-                );
-                const isOut = item.stock === 0;
-                const variant = isOut
-                  ? "danger"
-                  : item.stock <= item.minStock
-                    ? "warning"
-                    : "success";
+                Pelanggan Teratas
+              </div>
+              {topCustomers.slice(0, 4).map((c, i) => {
+                const grpCfg = GROUP_CFG[c.group_type] ?? {
+                  label: c.group_type,
+                  variant: "secondary",
+                };
                 return (
                   <div
-                    key={item.sku}
+                    key={c.id}
                     style={{
-                      padding: "12px 18px",
-                      borderBottom:
-                        i < LOW_STOCK_ALERTS.length - 1
-                          ? "1px solid var(--color-border)"
-                          : "none",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "8px 16px",
+                      borderTop: "1px solid var(--color-border)",
                     }}
                   >
                     <div
                       style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: "50%",
+                        background: getAvatarColor(c.id),
                         display: "flex",
-                        justifyContent: "space-between",
                         alignItems: "center",
-                        marginBottom: 6,
+                        justifyContent: "center",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "white",
+                        flexShrink: 0,
                       }}
                     >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: "var(--color-text-primary)",
-                            lineHeight: 1.3,
-                          }}
-                        >
-                          {item.name}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: "var(--color-text-muted)",
-                          }}
-                        >
-                          {item.sku}
-                        </div>
+                      {getInitials(c.name)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "var(--color-text-primary)",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {c.name}
                       </div>
-                      <Badge variant={variant} size='sm' dot>
-                        {item.stock} unit
-                      </Badge>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "var(--color-primary)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {formatRupiah(c.total_spent)}
+                      </div>
                     </div>
-                    <ProgressBar
-                      value={Math.min(pct, 100)}
-                      size='xs'
-                      variant={variant}
-                    />
-                    <div
-                      style={{
-                        fontSize: 10,
-                        color: "var(--color-text-muted)",
-                        marginTop: 3,
-                      }}
-                    >
-                      Minimum stok: {item.minStock} unit
-                    </div>
+                    <Badge variant={grpCfg.variant} size='sm'>
+                      {grpCfg.label}
+                    </Badge>
                   </div>
                 );
               })}
@@ -503,249 +702,349 @@ export default function DashboardClient({ user }) {
           </Card>
         </div>
 
-        {/* ── Bottom Row: Top Products + Sales by Category ── */}
+        {/* ── Bottom Row: Revenue Chart + Top Styles + Order Status ── */}
         <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}
+          style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16 }}
         >
-          {/* Top Products */}
+          {/* Revenue Chart (last 6 months) */}
           <Card padding='none'>
-            <div
-              style={{
-                padding: "16px 18px 12px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                borderBottom: "1px solid var(--color-border)",
-              }}
-            >
-              <h2
+            <SectionHeader
+              icon='fa-chart-bar'
+              title='Pendapatan 6 Bulan Terakhir'
+            />
+            {revenueByMonth.length === 0 ? (
+              <div
                 style={{
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: "var(--color-text-primary)",
-                  margin: 0,
-                }}
-              >
-                <i
-                  className='fa-solid fa-fire'
-                  style={{ marginRight: 8, color: "var(--color-primary)" }}
-                />
-                Produk Terlaris
-              </h2>
-            </div>
-            <div style={{ overflowX: "auto" }}>
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
+                  padding: "32px 18px",
+                  textAlign: "center",
+                  color: "var(--color-text-muted)",
                   fontSize: 13,
                 }}
               >
-                <thead>
-                  <tr
-                    style={{
-                      borderBottom: "1px solid var(--color-border)",
-                      background: "var(--color-bg-subtle)",
-                    }}
-                  >
-                    {["#", "Produk", "Kategori", "Terjual", "Pendapatan"].map(
-                      (h, i) => (
-                        <th
-                          key={i}
+                <i
+                  className='fa-solid fa-chart-bar'
+                  style={{ fontSize: 24, marginBottom: 8, display: "block" }}
+                />
+                Belum ada data
+              </div>
+            ) : (
+              <div style={{ padding: "20px 18px" }}>
+                {/* bar chart */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-end",
+                    gap: 10,
+                    height: 140,
+                    marginBottom: 10,
+                  }}
+                >
+                  {revenueByMonth.map((m, i) => {
+                    const pct = (Number(m.revenue) / maxRevenue) * 100;
+                    const costPct = (Number(m.cost) / maxRevenue) * 100;
+                    const [year, month] = m.month.split("-");
+                    const label = new Date(
+                      Number(year),
+                      Number(month) - 1,
+                    ).toLocaleDateString("id-ID", { month: "short" });
+                    return (
+                      <div
+                        key={i}
+                        style={{
+                          flex: 1,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <div
                           style={{
-                            padding: "9px 14px",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            textTransform: "uppercase",
-                            letterSpacing: ".04em",
+                            fontSize: 10,
                             color: "var(--color-text-muted)",
-                            whiteSpace: "nowrap",
-                            textAlign:
-                              i >= 3 ? "right" : i === 0 ? "center" : "left",
+                            fontWeight: 600,
                           }}
                         >
-                          {h}
-                        </th>
-                      ),
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {TOP_PRODUCTS.map((p, i) => (
-                    <tr
-                      key={p.name}
+                          {formatRupiah(m.revenue)
+                            .replace("Rp ", "")
+                            .replace(/\.000$/, "k")}
+                        </div>
+                        <div
+                          style={{
+                            width: "100%",
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "flex-end",
+                            height: 110,
+                            gap: 2,
+                            position: "relative",
+                          }}
+                        >
+                          {/* revenue bar */}
+                          <div
+                            style={{
+                              width: "100%",
+                              height: `${pct}%`,
+                              minHeight: 4,
+                              background: "var(--color-primary)",
+                              borderRadius:
+                                "var(--radius-sm) var(--radius-sm) 0 0",
+                              opacity: 0.85,
+                              transition: "height .3s",
+                            }}
+                            title={`Revenue: ${formatRupiah(m.revenue)}`}
+                          />
+                          {/* cost overlay */}
+                          <div
+                            style={{
+                              position: "absolute",
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              height: `${costPct}%`,
+                              minHeight: costPct > 0 ? 4 : 0,
+                              background: "var(--color-warning)",
+                              borderRadius:
+                                "var(--radius-sm) var(--radius-sm) 0 0",
+                              opacity: 0.6,
+                            }}
+                            title={`Cost: ${formatRupiah(m.cost)}`}
+                          />
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: "var(--color-text-muted)",
+                          }}
+                        >
+                          {label}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* legend */}
+                <div
+                  style={{ display: "flex", gap: 16, justifyContent: "center" }}
+                >
+                  {[
+                    { color: "var(--color-primary)", label: "Invoice" },
+                    { color: "var(--color-warning)", label: "Biaya Produksi" },
+                  ].map((l) => (
+                    <div
+                      key={l.label}
                       style={{
-                        borderBottom:
-                          i < TOP_PRODUCTS.length - 1
-                            ? "1px solid var(--color-border)"
-                            : "none",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 11,
+                        color: "var(--color-text-muted)",
                       }}
                     >
-                      <td style={{ padding: "10px 14px", textAlign: "center" }}>
-                        <span
+                      <div
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: 2,
+                          background: l.color,
+                        }}
+                      />
+                      {l.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+
+          {/* Right column: Top Styles + Order Status */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Top Styles */}
+            <Card padding='none'>
+              <SectionHeader icon='fa-shirt' title='Gaya Terlaris' />
+              {topStyles.length === 0 ? (
+                <div
+                  style={{
+                    padding: "20px 18px",
+                    textAlign: "center",
+                    color: "var(--color-text-muted)",
+                    fontSize: 13,
+                  }}
+                >
+                  Belum ada data
+                </div>
+              ) : (
+                <div style={{ padding: "10px 0" }}>
+                  {topStyles.map((s, i) => {
+                    const maxQty = topStyles[0]?.total_qty || 1;
+                    const pct = Math.round((s.total_qty / maxQty) * 100);
+                    return (
+                      <div
+                        key={i}
+                        style={{
+                          padding: "8px 16px",
+                          borderTop:
+                            i > 0 ? "1px solid var(--color-border)" : "none",
+                        }}
+                      >
+                        <div
                           style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: "50%",
-                            background:
-                              i < 3
-                                ? "var(--color-primary)"
-                                : "var(--color-bg-subtle)",
-                            color: i < 3 ? "white" : "var(--color-text-muted)",
-                            display: "inline-flex",
+                            display: "flex",
+                            justifyContent: "space-between",
                             alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 11,
-                            fontWeight: 700,
+                            marginBottom: 4,
                           }}
                         >
-                          {i + 1}
-                        </span>
-                      </td>
-                      <td style={{ padding: "10px 14px" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: "50%",
+                                background:
+                                  i < 3
+                                    ? "var(--color-primary)"
+                                    : "var(--color-bg-subtle)",
+                                color:
+                                  i < 3 ? "white" : "var(--color-text-muted)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 10,
+                                fontWeight: 700,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {i + 1}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: "var(--color-text-primary)",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                maxWidth: 130,
+                              }}
+                            >
+                              {s.style_name}
+                            </span>
+                          </div>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: "var(--color-text-muted)",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {s.total_qty} pcs
+                          </span>
+                        </div>
+                        <ProgressBar value={pct} size='xs' variant='primary' />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+
+            {/* Order Status Breakdown */}
+            <Card padding='none'>
+              <SectionHeader icon='fa-chart-pie' title='Status Pesanan' />
+              <div
+                style={{
+                  padding: "12px 16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
+                {Object.entries(ORDER_STATUS_CFG).map(([key, cfg]) => {
+                  const row = statusMap[key];
+                  const count = row?.count ?? 0;
+                  const totalOrders =
+                    Object.values(statusMap).reduce(
+                      (s, r) => s + Number(r.count || 0),
+                      0,
+                    ) || 1;
+                  const pct = Math.round((count / totalOrders) * 100);
+                  return (
+                    <div key={key}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: 4,
+                        }}
+                      >
                         <div
                           style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: 10,
+                            gap: 6,
                           }}
                         >
-                          <img
-                            src={p.image}
-                            alt={p.name}
+                          <i
+                            className={`fa-solid ${cfg.icon}`}
                             style={{
-                              width: 36,
-                              height: 36,
-                              borderRadius: "var(--radius-md)",
-                              objectFit: "cover",
-                              border: "1px solid var(--color-border)",
-                              flexShrink: 0,
+                              fontSize: 11,
+                              color: `var(--color-${cfg.variant === "primary" ? "primary" : cfg.variant})`,
                             }}
                           />
-                          <div
+                          <span
                             style={{
-                              fontSize: 13,
-                              fontWeight: 600,
-                              color: "var(--color-text-primary)",
-                              lineHeight: 1.3,
+                              fontSize: 12,
+                              color: "var(--color-text-secondary)",
                             }}
                           >
-                            {p.name}
-                          </div>
+                            {cfg.label}
+                          </span>
                         </div>
-                      </td>
-                      <td style={{ padding: "10px 14px" }}>
-                        <Badge variant='secondary' size='sm'>
-                          {p.category}
-                        </Badge>
-                      </td>
-                      <td
-                        style={{
-                          padding: "10px 14px",
-                          textAlign: "right",
-                          fontSize: 13,
-                          fontWeight: 600,
-                        }}
-                      >
-                        {p.sold}×
-                      </td>
-                      <td
-                        style={{
-                          padding: "10px 14px",
-                          textAlign: "right",
-                          fontSize: 13,
-                          fontWeight: 700,
-                          color: "var(--color-primary)",
-                        }}
-                      >
-                        {formatRupiah(p.revenue)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-
-          {/* Sales by Category */}
-          <Card padding='none'>
-            <div
-              style={{
-                padding: "16px 18px 12px",
-                borderBottom: "1px solid var(--color-border)",
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: "var(--color-text-primary)",
-                  margin: 0,
-                }}
-              >
-                <i
-                  className='fa-solid fa-chart-pie'
-                  style={{ marginRight: 8, color: "var(--color-primary)" }}
-                />
-                Penjualan per Kategori
-              </h2>
-            </div>
-            <div
-              style={{
-                padding: "16px 18px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 14,
-              }}
-            >
-              {SALES_BY_CATEGORY.map((cat, i) => (
-                <div key={cat.label}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: 5,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: "var(--color-text-primary)",
-                      }}
-                    >
-                      {cat.label}
-                    </span>
-                    <div style={{ textAlign: "right" }}>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: "var(--color-text-primary)",
-                        }}
-                      >
-                        {cat.pct}%
-                      </span>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: "var(--color-text-muted)",
-                        }}
-                      >
-                        {formatRupiah(cat.value)}
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            alignItems: "center",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: "var(--color-text-primary)",
+                            }}
+                          >
+                            {count}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              color: "var(--color-text-muted)",
+                            }}
+                          >
+                            {pct}%
+                          </span>
+                        </div>
                       </div>
+                      <ProgressBar
+                        value={pct}
+                        size='xs'
+                        variant={cfg.variant}
+                      />
                     </div>
-                  </div>
-                  <ProgressBar
-                    value={cat.pct}
-                    size='sm'
-                    variant={CATEGORY_COLORS[i]}
-                  />
-                </div>
-              ))}
-            </div>
-          </Card>
+                  );
+                })}
+              </div>
+            </Card>
+          </div>
         </div>
       </div>
     </DashboardLayout>

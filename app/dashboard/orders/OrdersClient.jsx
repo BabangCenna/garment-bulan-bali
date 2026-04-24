@@ -20,10 +20,11 @@ import { ORDER_STATUSES, PAYMENT_STATUS, formatRupiah } from "./_data";
 import { updateOrderStatus, cancelOrder } from "@/app/actions/orders";
 import ProductionCostModal from "./_components/ProductionCostModal";
 import PaymentModal from "./_components/PaymentModal";
+import * as XLSX from "xlsx";
 
 const PAGE_SIZE = 8;
 
-export default function OrdersClient({ initialOrders }) {
+export default function OrdersClient({ user, initialOrders }) {
   const toast = useToast();
   const router = useRouter();
 
@@ -44,6 +45,48 @@ export default function OrdersClient({ initialOrders }) {
   const [productionOpen, setProductionOpen] = useState(false);
   const [paymentOrder, setPaymentOrder] = useState(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
+
+  const handleExport = () => {
+    // prepare rows
+    const rows = filtered.map((o) => ({
+      "Kode Pesanan": o.code,
+      Pelanggan: o.customer.name,
+      Telepon: o.customer.phone,
+      Total: o.finalTotal,
+      Status: ORDER_STATUSES[o.status]?.label ?? o.status,
+      Pembayaran: PAYMENT_STATUS[o.paymentStatus]?.label ?? o.paymentStatus,
+      "Biaya Produksi": o.productionCost ?? 0,
+      Margin: (o.finalTotal ?? 0) - (o.productionCost ?? 0),
+      Tanggal: o.createdAt
+        ? new Date(o.createdAt).toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          })
+        : "-",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    // column widths
+    ws["!cols"] = [
+      { wch: 20 }, // kode
+      { wch: 25 }, // pelanggan
+      { wch: 16 }, // telepon
+      { wch: 16 }, // total
+      { wch: 14 }, // status
+      { wch: 14 }, // pembayaran
+      { wch: 18 }, // biaya produksi
+      { wch: 14 }, // margin
+      { wch: 20 }, // tanggal
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Pesanan");
+
+    const fileName = `pesanan_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
 
   // ── handlers ──────────────────────────────────────────────────
   const handleNewOrder = ({ order, items }) => {
@@ -203,7 +246,7 @@ export default function OrdersClient({ initialOrders }) {
     .reduce((s, o) => s + o.finalTotal, 0);
 
   return (
-    <DashboardLayout activeKey='orders'>
+    <DashboardLayout activeKey='orders' user={user}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {/* header */}
         <div>
@@ -254,6 +297,7 @@ export default function OrdersClient({ initialOrders }) {
                 variant='secondary'
                 size='sm'
                 leftIcon={<i className='fa-solid fa-download' />}
+                onClick={handleExport}
               >
                 Export
               </Button>

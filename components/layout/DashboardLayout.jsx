@@ -6,57 +6,21 @@ import Dropdown from "@/components/ui/navigation/Dropdown";
 import Tooltip from "@/components/ui/data/Tooltip";
 
 const NAV_ITEMS = [
-  {
-    divider: true,
-    label: "UTAMA",
-  },
-  {
-    key: "dashboard",
-    label: "Dashboard",
-    icon: "fa-chart-pie",
-    href: "/dashboard",
-  },
-  {
-    divider: true,
-    label: "INVENTORI",
-  },
-  {
-    key: "products",
-    label: "Produk",
-    icon: "fa-box",
-    href: "/dashboard/products",
-    badge: "124",
-  },
+  { divider: true, label: "UTAMA" },
+  { key: "home", label: "Dashboard", icon: "fa-chart-pie", href: "/dashboard" },
+  { divider: true, label: "INVENTORI" },
   {
     key: "categories",
     label: "Kategori",
     icon: "fa-tags",
     href: "/dashboard/categories",
   },
-  // {
-  //   key: "stock",
-  //   label: "Stok & Gudang",
-  //   icon: "fa-boxes-stacked",
-  //   href: "/dashboard/stock",
-  //   badge: "3",
-  //   badgeVariant: "danger",
-  // },
-  // {
-  //   key: "suppliers",
-  //   label: "Supplier",
-  //   icon: "fa-truck",
-  //   href: "/dashboard/suppliers",
-  // },
-  {
-    divider: true,
-    label: "PENJUALAN",
-  },
+  { divider: true, label: "PENJUALAN" },
   {
     key: "orders",
     label: "Pesanan",
     icon: "fa-receipt",
     href: "/dashboard/orders",
-    badge: "12",
     badgeVariant: "warning",
     children: [
       { key: "orders-all", label: "Semua Pesanan", href: "/dashboard/orders" },
@@ -74,16 +38,7 @@ const NAV_ITEMS = [
     icon: "fa-users",
     href: "/dashboard/customers",
   },
-  // {
-  //   key: "promos",
-  //   label: "Promo & Diskon",
-  //   icon: "fa-percent",
-  //   href: "/dashboard/promos",
-  // },
-  {
-    divider: true,
-    label: "KEUANGAN",
-  },
+  { divider: true, label: "KEUANGAN" },
   {
     key: "finance",
     label: "Keuangan",
@@ -107,16 +62,7 @@ const NAV_ITEMS = [
       },
     ],
   },
-  // {
-  //   key: "reports",
-  //   label: "Laporan",
-  //   icon: "fa-chart-bar",
-  //   href: "/dashboard/reports",
-  // },
-  {
-    divider: true,
-    label: "SISTEM",
-  },
+  { divider: true, label: "SISTEM" },
   {
     key: "users",
     label: "Pengguna",
@@ -136,25 +82,22 @@ function SidebarNav({ collapsed, activeKey }) {
     orders: false,
     finance: false,
   });
-
   const toggleGroup = (key) => setOpenGroups((v) => ({ ...v, [key]: !v[key] }));
 
   return (
     <nav className='flex-1 overflow-y-auto py-2 px-2'>
       {NAV_ITEMS.map((item, i) => {
-        // divider
         if (item.divider) {
           return (
             <div key={i} className='mt-4 mb-1 px-2'>
-              {!collapsed && (
+              {!collapsed ? (
                 <span
                   className='text-[10px] font-semibold tracking-widest uppercase'
                   style={{ color: "var(--color-text-muted)" }}
                 >
                   {item.label}
                 </span>
-              )}
-              {collapsed && (
+              ) : (
                 <div
                   className='h-px mx-1'
                   style={{ background: "var(--color-border)" }}
@@ -194,7 +137,6 @@ function SidebarNav({ collapsed, activeKey }) {
               <span className={iconClass}>
                 <i className={`fa-solid ${item.icon}`} />
               </span>
-
               {!collapsed && (
                 <>
                   <span
@@ -220,7 +162,7 @@ function SidebarNav({ collapsed, activeKey }) {
                   )}
                   {hasChildren && (
                     <i
-                      className={`fa-solid fa-chevron-down text-[10px] transition-transform duration-200`}
+                      className='fa-solid fa-chevron-down text-[10px] transition-transform duration-200'
                       style={{
                         color: isActive
                           ? "rgba(255,255,255,.7)"
@@ -231,8 +173,6 @@ function SidebarNav({ collapsed, activeKey }) {
                   )}
                 </>
               )}
-
-              {/* collapsed badge dot */}
               {collapsed && item.badge && (
                 <span
                   className='absolute top-1.5 right-1.5 w-2 h-2 rounded-full flex-shrink-0'
@@ -245,8 +185,6 @@ function SidebarNav({ collapsed, activeKey }) {
                 />
               )}
             </a>
-
-            {/* sub items */}
             {hasChildren && isOpen && !collapsed && (
               <div
                 className='ml-[30px] mt-1 mb-1 flex flex-col gap-0.5 border-l pl-3'
@@ -279,7 +217,6 @@ function SidebarNav({ collapsed, activeKey }) {
           </div>
         );
 
-        // wrap with tooltip when collapsed
         if (collapsed) {
           return (
             <Tooltip key={item.key} content={item.label} placement='right'>
@@ -287,17 +224,26 @@ function SidebarNav({ collapsed, activeKey }) {
             </Tooltip>
           );
         }
-
         return navItem;
       })}
     </nav>
   );
 }
 
+// role label map
+const ROLE_LABELS = {
+  super_admin: "Super Admin",
+  admin: "Admin",
+  staff: "Staff",
+  technician: "Teknisi",
+  customer: "Pelanggan",
+  owner: "Owner",
+};
+
 export default function DashboardLayout({
   children,
-  activeKey = "dashboard",
-  onLogout,
+  activeKey = "home",
+  user,
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -307,6 +253,15 @@ export default function DashboardLayout({
     window.location.href = "/login";
   };
 
+  const displayName = user?.fullName ?? user?.username ?? "Admin";
+  const shortName = displayName
+    .split(" ")
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
+  const roleLabel = ROLE_LABELS[user?.role] ?? user?.role ?? "User";
+
   const sidebarWidth = collapsed ? 64 : 240;
 
   return (
@@ -314,7 +269,6 @@ export default function DashboardLayout({
       className='flex h-screen overflow-hidden'
       style={{ background: "var(--color-bg-tertiary)" }}
     >
-      {/* ── SIDEBAR ── */}
       {/* mobile backdrop */}
       {mobileOpen && (
         <div
@@ -324,6 +278,7 @@ export default function DashboardLayout({
         />
       )}
 
+      {/* ── SIDEBAR ── */}
       <aside
         className='flex flex-col h-full z-50 transition-all duration-200 flex-shrink-0'
         style={{
@@ -332,17 +287,20 @@ export default function DashboardLayout({
           borderRight: "1px solid var(--color-border)",
         }}
       >
-        {/* brand */}
+        {/* brand row */}
         <div
-          className='flex items-center gap-3 px-3 flex-shrink-0 h-14'
+          className='flex items-center h-14 flex-shrink-0 px-3 gap-3'
           style={{ borderBottom: "1px solid var(--color-border)" }}
         >
+          {/* logo — always visible */}
           <div
             className='w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-white text-sm font-bold'
             style={{ background: "var(--color-primary)" }}
           >
             <i className='fa-solid fa-store' />
           </div>
+
+          {/* brand text — only when expanded */}
           {!collapsed && (
             <div className='flex-1 min-w-0'>
               <div
@@ -359,6 +317,8 @@ export default function DashboardLayout({
               </div>
             </div>
           )}
+
+          {/* collapse toggle */}
           <button
             type='button'
             className='flex items-center justify-center w-7 h-7 rounded-md transition-colors flex-shrink-0'
@@ -367,6 +327,8 @@ export default function DashboardLayout({
               background: "transparent",
               border: "none",
               cursor: "pointer",
+              // when collapsed, push to the right edge naturally since it's the only non-logo element
+              marginLeft: collapsed ? "auto" : undefined,
             }}
             onClick={() => setCollapsed((v) => !v)}
             onMouseEnter={(e) =>
@@ -384,8 +346,6 @@ export default function DashboardLayout({
 
         {/* nav */}
         <SidebarNav collapsed={collapsed} activeKey={activeKey} />
-
-        {/* user profile */}
       </aside>
 
       {/* ── MAIN AREA ── */}
@@ -398,7 +358,6 @@ export default function DashboardLayout({
             borderBottom: "1px solid var(--color-border)",
           }}
         >
-          {/* mobile menu toggle */}
           <button
             type='button'
             className='flex md:hidden items-center justify-center w-8 h-8 rounded-lg'
@@ -413,7 +372,6 @@ export default function DashboardLayout({
             <i className='fa-solid fa-bars' />
           </button>
 
-          {/* page title slot — filled by children via context or prop */}
           <div className='flex-1 flex items-center gap-2 min-w-0'>
             <div
               className='text-[15px] font-semibold truncate'
@@ -426,63 +384,24 @@ export default function DashboardLayout({
             </Badge>
           </div>
 
-          {/* right slot */}
           <div className='flex items-center gap-2'>
-            {/* notif */}
-            <Tooltip content='Notifikasi' placement='bottom'>
-              <div className='relative'>
-                <button
-                  type='button'
-                  className='flex items-center justify-center w-8 h-8 rounded-lg transition-colors'
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--color-text-secondary)",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background =
-                      "var(--color-bg-subtle)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "none")
-                  }
-                >
-                  <i className='fa-solid fa-bell text-sm' />
-                </button>
-                <span
-                  className='absolute top-1 right-1 w-2 h-2 rounded-full border-2'
-                  style={{
-                    background: "var(--color-danger)",
-                    borderColor: "var(--color-bg-primary)",
-                  }}
-                />
-              </div>
-            </Tooltip>
-
-            {/* divider */}
-            <div
-              className='w-px h-5 mx-1'
-              style={{ background: "var(--color-border)" }}
-            />
-
-            {/* avatar */}
+            {/* user dropdown — now uses session data */}
             <Dropdown
               trigger={
                 <div className='flex items-center gap-2 cursor-pointer select-none'>
-                  <Avatar name='Budi Santoso' size='sm' color='primary' />
+                  <Avatar name={displayName} size='sm' color='primary' />
                   <div className='hidden sm:block'>
                     <div
                       className='text-[13px] font-medium leading-none mb-0.5'
                       style={{ color: "var(--color-text-primary)" }}
                     >
-                      Budi S.
+                      {displayName.split(" ")[0]}
                     </div>
                     <div
                       className='text-[11px]'
                       style={{ color: "var(--color-text-muted)" }}
                     >
-                      Owner
+                      {roleLabel}
                     </div>
                   </div>
                   <i
@@ -494,21 +413,11 @@ export default function DashboardLayout({
               align='right'
               items={[
                 // {
-                //   label: "Profil Saya",
-                //   icon: <i className='fa-solid fa-user' />,
+                //   label: "Pengaturan",
+                //   icon: <i className='fa-solid fa-gear' />,
                 //   onClick: () => {},
                 // },
-                {
-                  label: "Pengaturan",
-                  icon: <i className='fa-solid fa-gear' />,
-                  onClick: () => {},
-                },
-                // {
-                //   label: "Bantuan",
-                //   icon: <i className='fa-solid fa-circle-question' />,
-                //   onClick: () => {},
-                // },
-                { divider: true },
+                // { divider: true },
                 {
                   label: "Keluar",
                   icon: <i className='fa-solid fa-right-from-bracket' />,
@@ -520,7 +429,6 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        {/* page content */}
         <main className='flex-1 overflow-y-auto p-6'>{children}</main>
       </div>
     </div>

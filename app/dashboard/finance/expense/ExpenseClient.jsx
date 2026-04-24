@@ -8,13 +8,8 @@ import Tooltip from "@/components/ui/data/Tooltip";
 import EmptyState from "@/components/ui/data/EmptyState";
 import Button from "@/components/ui/button/Button";
 import IconButton from "@/components/ui/button/IconButton";
-import ConfirmDialog from "@/components/ui/feedback/ConfirmDialog";
 import Modal from "@/components/ui/feedback/Modal";
-import { useToast } from "@/components/ui/feedback/ToastProvider";
 import SearchInput from "@/components/ui/form/SearchInput";
-import Input from "@/components/ui/form/Input";
-import Select from "@/components/ui/form/Select";
-import Textarea from "@/components/ui/form/Textarea";
 import Pagination from "@/components/ui/navigation/Pagination";
 import Breadcrumb from "@/components/ui/navigation/Breadcrumb";
 import FilterBar from "@/components/ui/form/FilterBar";
@@ -22,330 +17,157 @@ import FilterBar from "@/components/ui/form/FilterBar";
 // ─── CONSTANTS ────────────────────────────────────────────────────
 const PAGE_SIZE = 10;
 
-const EXPENSE_CATEGORIES = [
-  { value: "pembelian", label: "Pembelian Stok" },
-  { value: "operasional", label: "Operasional" },
-  { value: "gaji", label: "Gaji & Tunjangan" },
-  { value: "utilitas", label: "Utilitas & Listrik" },
-  { value: "marketing", label: "Marketing & Iklan" },
-  { value: "lainnya", label: "Lain-lain" },
-];
-
 const PAYMENT_METHODS = [
-  { value: "tunai", label: "Tunai" },
+  { value: "cash", label: "Tunai" },
   { value: "transfer", label: "Transfer Bank" },
+  { value: "qris", label: "QRIS" },
   { value: "kartu", label: "Kartu Debit/Kredit" },
 ];
 
-const DUMMY_EXPENSE = [
-  {
-    id: 1,
-    date: "2025-01-22",
-    ref: "EXP-0001",
-    description: "Restock Wardah & Scarlett",
-    category: "pembelian",
-    method: "transfer",
-    amount: 4250000,
-    note: "Invoice #INV-2501",
-    status: "lunas",
-    approvedBy: "Admin",
-  },
-  {
-    id: 2,
-    date: "2025-01-22",
-    ref: "EXP-0002",
-    description: "Biaya listrik bulan Januari",
-    category: "utilitas",
-    method: "transfer",
-    amount: 875000,
-    note: "PLN pascabayar",
-    status: "lunas",
-    approvedBy: "Admin",
-  },
-  {
-    id: 3,
-    date: "2025-01-21",
-    ref: "EXP-0003",
-    description: "Iklan Instagram & TikTok",
-    category: "marketing",
-    method: "kartu",
-    amount: 500000,
-    note: "Budget promosi Jan W3",
-    status: "lunas",
-    approvedBy: "Admin",
-  },
-  {
-    id: 4,
-    date: "2025-01-20",
-    ref: "EXP-0004",
-    description: "Gaji karyawan + kasir (Jan 2025)",
-    category: "gaji",
-    method: "transfer",
-    amount: 8500000,
-    note: "5 karyawan",
-    status: "lunas",
-    approvedBy: "Owner",
-  },
-  {
-    id: 5,
-    date: "2025-01-20",
-    ref: "EXP-0005",
-    description: "Restock Cetaphil & Blackmores",
-    category: "pembelian",
-    method: "transfer",
-    amount: 2100000,
-    note: "Invoice #INV-2502",
-    status: "lunas",
-    approvedBy: "Admin",
-  },
-  {
-    id: 6,
-    date: "2025-01-19",
-    ref: "EXP-0006",
-    description: "Sewa toko bulan Februari",
-    category: "operasional",
-    method: "transfer",
-    amount: 3500000,
-    note: "Bayar DP sewa",
-    status: "pending",
-    approvedBy: "",
-  },
-  {
-    id: 7,
-    date: "2025-01-18",
-    ref: "EXP-0007",
-    description: "Alat kebersihan & kebutuhan toko",
-    category: "operasional",
-    method: "tunai",
-    amount: 185000,
-    note: "",
-    status: "lunas",
-    approvedBy: "Admin",
-  },
-  {
-    id: 8,
-    date: "2025-01-17",
-    ref: "EXP-0008",
-    description: "Printer struk kasir – servis",
-    category: "operasional",
-    method: "tunai",
-    amount: 150000,
-    note: "",
-    status: "lunas",
-    approvedBy: "Admin",
-  },
-  {
-    id: 9,
-    date: "2025-01-17",
-    ref: "EXP-0009",
-    description: "Restock Johnson's & Cap Lang",
-    category: "pembelian",
-    method: "transfer",
-    amount: 1750000,
-    note: "Invoice #INV-2503",
-    status: "lunas",
-    approvedBy: "Admin",
-  },
-  {
-    id: 10,
-    date: "2025-01-16",
-    ref: "EXP-0010",
-    description: "Biaya internet toko",
-    category: "utilitas",
-    method: "transfer",
-    amount: 320000,
-    note: "Indihome Jan 2025",
-    status: "lunas",
-    approvedBy: "Admin",
-  },
-  {
-    id: 11,
-    date: "2025-01-15",
-    ref: "EXP-0011",
-    description: "Desain banner promosi",
-    category: "marketing",
-    method: "transfer",
-    amount: 200000,
-    note: "Freelancer Canva",
-    status: "lunas",
-    approvedBy: "Admin",
-  },
-  {
-    id: 12,
-    date: "2025-01-15",
-    ref: "EXP-0012",
-    description: "Bonus karyawan terbaik",
-    category: "gaji",
-    method: "tunai",
-    amount: 300000,
-    note: "Kasir terbaik Jan W2",
-    status: "pending",
-    approvedBy: "",
-  },
+// cost breakdown fields
+const COST_FIELDS = [
+  { key: "sewing", label: "Jahit" },
+  { key: "buttonhole", label: "Kancing" },
+  { key: "swir", label: "Swir" },
+  { key: "assembly", label: "Assembly" },
+  { key: "embroidery", label: "Bordir" },
+  { key: "prewash", label: "Prewash" },
 ];
 
-const EMPTY_FORM = {
-  date: new Date().toISOString().slice(0, 10),
-  description: "",
-  category: "",
-  method: "",
-  amount: "",
-  note: "",
-};
-
-const formatRupiah = (n) => "Rp " + Number(n).toLocaleString("id-ID");
-const formatDate = (d) =>
-  new Date(d).toLocaleDateString("id-ID", {
+const formatRupiah = (n) => "Rp " + Number(n || 0).toLocaleString("id-ID");
+const formatDate = (d) => {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("id-ID", {
     day: "numeric",
     month: "short",
     year: "numeric",
   });
-
-const catConfig = {
-  pembelian: {
-    label: "Pembelian Stok",
-    variant: "primary",
-    icon: "fa-boxes-stacked",
-  },
-  operasional: { label: "Operasional", variant: "secondary", icon: "fa-store" },
-  gaji: { label: "Gaji & Tunjangan", variant: "info", icon: "fa-users" },
-  utilitas: { label: "Utilitas", variant: "warning", icon: "fa-bolt" },
-  marketing: { label: "Marketing", variant: "success", icon: "fa-bullhorn" },
-  lainnya: { label: "Lain-lain", variant: "secondary", icon: "fa-ellipsis" },
 };
 
-// ─── EXPENSE FORM MODAL ───────────────────────────────────────────
-function ExpenseFormModal({ open, onClose, onSave, initial }) {
-  const [form, setForm] = useState(initial ?? EMPTY_FORM);
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
-
-  const set = (key, val) => {
-    setForm((v) => ({ ...v, [key]: val }));
-    setErrors((v) => ({ ...v, [key]: "" }));
-  };
-
-  const validate = () => {
-    const e = {};
-    if (!form.date) e.date = "Tanggal wajib diisi";
-    if (!form.description.trim()) e.description = "Keterangan wajib diisi";
-    if (!form.category) e.category = "Pilih kategori";
-    if (!form.method) e.method = "Pilih metode pembayaran";
-    if (!form.amount || Number(form.amount) <= 0)
-      e.amount = "Jumlah harus lebih dari 0";
-    return e;
-  };
-
-  const handleSave = async () => {
-    const e = validate();
-    if (Object.keys(e).length) {
-      setErrors(e);
-      return;
-    }
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 700));
-    onSave?.({ ...form, id: initial?.id ?? Date.now() });
-    setLoading(false);
-    onClose();
-  };
-
-  const isEdit = !!initial?.id;
-
+// ─── COST DETAIL MODAL ────────────────────────────────────────────
+function CostDetailModal({ open, onClose, item }) {
+  if (!item) return null;
+  const qty = item.qty ?? 1;
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={isEdit ? "Edit Pengeluaran" : "Tambah Pengeluaran"}
-      size='md'
-      closeable={!loading}
+      title={`Rincian Biaya · ${item.ref}`}
+      size='sm'
       footer={
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Button variant='secondary' onClick={onClose} disabled={loading}>
-            Batal
-          </Button>
-          <Button
-            variant='primary'
-            loading={loading}
-            onClick={handleSave}
-            leftIcon={!loading && <i className='fa-solid fa-floppy-disk' />}
-          >
-            {isEdit ? "Simpan Perubahan" : "Tambah Pengeluaran"}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Button variant='secondary' onClick={onClose}>
+            Tutup
           </Button>
         </div>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* order info */}
         <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+          style={{
+            padding: "10px 14px",
+            borderRadius: "var(--radius-md)",
+            background: "var(--color-bg-subtle)",
+            border: "1px solid var(--color-border)",
+            fontSize: 12,
+          }}
         >
-          <Input
-            label='Tanggal'
-            required
-            type='date'
-            value={form.date}
-            onChange={(e) => set("date", e.target.value)}
-            error={errors.date}
-          />
-          <Input
-            label='Jumlah'
-            required
-            type='number'
-            prefix='Rp'
-            placeholder='0'
-            value={form.amount}
-            onChange={(e) => set("amount", e.target.value)}
-            error={errors.amount}
-          />
+          <div
+            style={{
+              fontWeight: 600,
+              color: "var(--color-text-primary)",
+              marginBottom: 4,
+            }}
+          >
+            {item.customer_name}
+          </div>
+          <div style={{ color: "var(--color-text-muted)" }}>
+            Style: {item.style_name ?? "—"} · Qty: {qty}
+          </div>
         </div>
-        <Input
-          label='Keterangan'
-          required
-          placeholder='Contoh: Restock stok dari supplier'
-          value={form.description}
-          onChange={(e) => set("description", e.target.value)}
-          error={errors.description}
-        />
+
+        {/* cost rows */}
+        {COST_FIELDS.map(({ key, label }) => {
+          const perPcs = item[key] ?? 0;
+          const total = perPcs * qty;
+          if (perPcs === 0) return null;
+          return (
+            <div
+              key={key}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                paddingBottom: 10,
+                borderBottom: "1px solid var(--color-border)",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: "var(--color-text-primary)",
+                    fontWeight: 500,
+                  }}
+                >
+                  {label}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+                  {formatRupiah(perPcs)} × {qty} pcs
+                </div>
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "var(--color-danger)",
+                }}
+              >
+                {formatRupiah(total)}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* total */}
         <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
         >
-          <Select
-            label='Kategori'
-            required
-            options={EXPENSE_CATEGORIES}
-            placeholder='Pilih kategori...'
-            value={form.category}
-            onChange={(e) => set("category", e.target.value)}
-            error={errors.category}
-          />
-          <Select
-            label='Metode Pembayaran'
-            required
-            options={PAYMENT_METHODS}
-            placeholder='Pilih metode...'
-            value={form.method}
-            onChange={(e) => set("method", e.target.value)}
-            error={errors.method}
-          />
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: "var(--color-text-primary)",
+            }}
+          >
+            Total
+          </div>
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 700,
+              color: "var(--color-danger)",
+            }}
+          >
+            {formatRupiah(item.amount)}
+          </div>
         </div>
-        <Textarea
-          label='Catatan'
-          placeholder='Catatan tambahan (opsional)'
-          value={form.note}
-          onChange={(e) => set("note", e.target.value)}
-          rows={3}
-        />
       </div>
     </Modal>
   );
 }
 
 // ─── TABLE ROW ────────────────────────────────────────────────────
-function ExpenseTableRow({ item, onEdit, onDelete }) {
-  const cat = catConfig[item.category] ?? {
-    label: item.category,
-    variant: "secondary",
-    icon: "fa-circle",
-  };
+function ExpenseTableRow({ item, onDetail }) {
+  const method = PAYMENT_METHODS.find((m) => m.value === item.method);
+
+  // which cost types are active on this item
+  const activeCosts = COST_FIELDS.filter(({ key }) => (item[key] ?? 0) > 0);
 
   return (
     <tr
@@ -358,6 +180,7 @@ function ExpenseTableRow({ item, onEdit, onDelete }) {
       }
       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
     >
+      {/* date + ref */}
       <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
         <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
           {formatDate(item.date)}
@@ -372,7 +195,9 @@ function ExpenseTableRow({ item, onEdit, onDelete }) {
           {item.ref}
         </div>
       </td>
-      <td style={{ padding: "10px 14px", maxWidth: 260 }}>
+
+      {/* customer + style */}
+      <td style={{ padding: "10px 14px", maxWidth: 240 }}>
         <div
           style={{
             fontSize: 13,
@@ -381,32 +206,44 @@ function ExpenseTableRow({ item, onEdit, onDelete }) {
             lineHeight: 1.35,
           }}
         >
-          {item.description}
+          {item.customer_name}
         </div>
-        {item.note && (
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--color-text-muted)",
-              marginTop: 2,
-            }}
-          >
-            {item.note}
-          </div>
-        )}
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--color-text-muted)",
+            marginTop: 2,
+          }}
+        >
+          {item.style_name ?? "—"} · {item.qty} pcs
+        </div>
       </td>
+
+      {/* cost types as badges */}
       <td style={{ padding: "10px 14px" }}>
-        <Badge variant={cat.variant} size='sm'>
-          <i className={`fa-solid ${cat.icon}`} style={{ marginRight: 5 }} />
-          {cat.label}
-        </Badge>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+          {activeCosts.length > 0 ? (
+            activeCosts.map(({ key, label }) => (
+              <Badge key={key} variant='secondary' size='sm'>
+                {label}
+              </Badge>
+            ))
+          ) : (
+            <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
+              —
+            </span>
+          )}
+        </div>
       </td>
+
+      {/* method */}
       <td style={{ padding: "10px 14px" }}>
         <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-          {PAYMENT_METHODS.find((m) => m.value === item.method)?.label ??
-            item.method}
+          {method?.label ?? item.method ?? "—"}
         </span>
       </td>
+
+      {/* amount */}
       <td style={{ padding: "10px 14px", textAlign: "right" }}>
         <div
           style={{
@@ -418,15 +255,8 @@ function ExpenseTableRow({ item, onEdit, onDelete }) {
           {formatRupiah(item.amount)}
         </div>
       </td>
-      <td style={{ padding: "10px 14px", textAlign: "center" }}>
-        <Badge
-          variant={item.status === "lunas" ? "success" : "warning"}
-          size='sm'
-          dot
-        >
-          {item.status === "lunas" ? "Lunas" : "Pending"}
-        </Badge>
-      </td>
+
+      {/* action */}
       <td style={{ padding: "10px 14px" }}>
         <div
           style={{
@@ -436,23 +266,24 @@ function ExpenseTableRow({ item, onEdit, onDelete }) {
             justifyContent: "flex-end",
           }}
         >
-          <Tooltip content='Edit' placement='top'>
+          <Tooltip content='Rincian' placement='top'>
             <IconButton
-              icon={<i className='fa-solid fa-pen' />}
+              icon={<i className='fa-solid fa-list-ul' />}
               size='sm'
               variant='ghost'
-              label='Edit'
-              onClick={() => onEdit(item)}
+              label='Rincian'
+              onClick={() => onDetail(item)}
             />
           </Tooltip>
-          <Tooltip content='Hapus' placement='top'>
+          <Tooltip content='Lihat Order' placement='top'>
             <IconButton
-              icon={<i className='fa-solid fa-trash' />}
+              icon={<i className='fa-solid fa-arrow-up-right-from-square' />}
               size='sm'
               variant='ghost'
-              label='Hapus'
-              onClick={() => onDelete(item)}
-              style={{ color: "var(--color-danger)" }}
+              label='Lihat Order'
+              onClick={() =>
+                window.open(`/dashboard/orders/${item.order_id}`, "_blank")
+              }
             />
           </Tooltip>
         </div>
@@ -462,19 +293,14 @@ function ExpenseTableRow({ item, onEdit, onDelete }) {
 }
 
 // ─── MAIN CLIENT ──────────────────────────────────────────────────
-export default function ExpenseClient({ user }) {
-  const toast = useToast();
-  const [items, setItems] = useState(DUMMY_EXPENSE);
+export default function ExpenseClient({ user, initialExpenses }) {
+  const items = initialExpenses ?? [];
   const [search, setSearch] = useState("");
-  const [filterCat, setFilterCat] = useState("");
   const [filterMethod, setFilterMethod] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
   const [sortBy, setSortBy] = useState("date_desc");
   const [page, setPage] = useState(1);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editItem, setEditItem] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const [detailItem, setDetailItem] = useState(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const filtered = useMemo(() => {
     let arr = [...items];
@@ -482,13 +308,12 @@ export default function ExpenseClient({ user }) {
       const q = search.toLowerCase();
       arr = arr.filter(
         (i) =>
-          i.description.toLowerCase().includes(q) ||
-          i.ref.toLowerCase().includes(q),
+          (i.customer_name ?? "").toLowerCase().includes(q) ||
+          (i.ref ?? "").toLowerCase().includes(q) ||
+          (i.style_name ?? "").toLowerCase().includes(q),
       );
     }
-    if (filterCat) arr = arr.filter((i) => i.category === filterCat);
     if (filterMethod) arr = arr.filter((i) => i.method === filterMethod);
-    if (filterStatus) arr = arr.filter((i) => i.status === filterStatus);
     arr.sort((a, b) => {
       if (sortBy === "date_desc") return new Date(b.date) - new Date(a.date);
       if (sortBy === "date_asc") return new Date(a.date) - new Date(b.date);
@@ -497,108 +322,51 @@ export default function ExpenseClient({ user }) {
       return 0;
     });
     return arr;
-  }, [items, search, filterCat, filterMethod, filterStatus, sortBy]);
+  }, [items, search, filterMethod, sortBy]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const activeFilters = [
-    filterCat && {
-      key: "cat",
-      label: "Kategori",
-      value: EXPENSE_CATEGORIES.find((c) => c.value === filterCat)?.label,
-    },
     filterMethod && {
       key: "method",
       label: "Metode",
       value: PAYMENT_METHODS.find((m) => m.value === filterMethod)?.label,
     },
-    filterStatus && {
-      key: "status",
-      label: "Status",
-      value: filterStatus === "lunas" ? "Lunas" : "Pending",
-    },
   ].filter(Boolean);
 
   const removeFilter = (key) => {
-    if (key === "cat") setFilterCat("");
     if (key === "method") setFilterMethod("");
-    if (key === "status") setFilterStatus("");
     setPage(1);
   };
   const clearAllFilters = () => {
-    setFilterCat("");
     setFilterMethod("");
-    setFilterStatus("");
     setPage(1);
   };
 
-  const totalAmount = items.reduce((s, i) => s + i.amount, 0);
-  const lunasAmount = items
-    .filter((i) => i.status === "lunas")
-    .reduce((s, i) => s + i.amount, 0);
-  const pendingAmount = items
-    .filter((i) => i.status === "pending")
-    .reduce((s, i) => s + i.amount, 0);
-  const pembelianAmount = items
-    .filter((i) => i.category === "pembelian")
-    .reduce((s, i) => s + i.amount, 0);
+  // stats
+  const totalAmount = items.reduce((s, i) => s + (i.amount ?? 0), 0);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayAmount = items
+    .filter((i) => (i.date ?? "").slice(0, 10) === todayStr)
+    .reduce((s, i) => s + (i.amount ?? 0), 0);
+  const monthStr = new Date().toISOString().slice(0, 7);
+  const monthAmount = items
+    .filter((i) => (i.date ?? "").slice(0, 7) === monthStr)
+    .reduce((s, i) => s + (i.amount ?? 0), 0);
 
-  // breakdown by category
-  const categoryBreakdown = useMemo(() => {
-    return EXPENSE_CATEGORIES.map((cat) => {
-      const total = items
-        .filter((i) => i.category === cat.value)
-        .reduce((s, i) => s + i.amount, 0);
-      return {
-        ...cat,
-        total,
-        pct: totalAmount > 0 ? Math.round((total / totalAmount) * 100) : 0,
-      };
+  // category breakdown — sum by cost type across all items
+  const costBreakdown = useMemo(() => {
+    return COST_FIELDS.map(({ key, label }) => {
+      const total = items.reduce((s, i) => s + (i[key] ?? 0) * (i.qty ?? 1), 0);
+      return { key, label, total };
     })
       .filter((c) => c.total > 0)
       .sort((a, b) => b.total - a.total);
-  }, [items, totalAmount]);
-
-  const handleSave = (data) => {
-    const isEdit = items.find((i) => i.id === data.id);
-    if (isEdit) {
-      setItems((prev) =>
-        prev.map((i) => (i.id === data.id ? { ...i, ...data } : i)),
-      );
-      toast.add({
-        variant: "success",
-        title: "Tersimpan",
-        message: "Pengeluaran berhasil diperbarui.",
-      });
-    } else {
-      const ref = "EXP-" + String(items.length + 1).padStart(4, "0");
-      setItems((prev) => [
-        { ...data, ref, status: "lunas", approvedBy: user?.name ?? "Admin" },
-        ...prev,
-      ]);
-      toast.add({
-        variant: "success",
-        title: "Ditambahkan",
-        message: "Pengeluaran berhasil dicatat.",
-      });
-    }
-    setEditItem(null);
-  };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    const target = deleteTarget;
-    await new Promise((r) => setTimeout(r, 600));
-    setItems((prev) => prev.filter((i) => i.id !== target.id));
-    toast.add({ variant: "success", message: `${target.ref} dihapus.` });
-    setDeleteTarget(null);
-    setDeleting(false);
-  };
+  }, [items]);
 
   return (
-    <DashboardLayout activeKey='finance'>
+    <DashboardLayout activeKey='finance' user={user}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {/* header */}
         <div>
@@ -633,7 +401,7 @@ export default function ExpenseClient({ user }) {
                   letterSpacing: "-.3px",
                 }}
               >
-                Pengeluaran
+                Pengeluaran Produksi
               </h1>
               <p
                 style={{
@@ -642,29 +410,16 @@ export default function ExpenseClient({ user }) {
                   margin: 0,
                 }}
               >
-                {items.length} transaksi · Total {formatRupiah(totalAmount)}
+                {items.length} item · Total {formatRupiah(totalAmount)}
               </p>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <Button
-                variant='secondary'
-                size='sm'
-                leftIcon={<i className='fa-solid fa-download' />}
-              >
-                Export
-              </Button>
-              <Button
-                variant='primary'
-                size='sm'
-                leftIcon={<i className='fa-solid fa-plus' />}
-                onClick={() => {
-                  setEditItem(null);
-                  setFormOpen(true);
-                }}
-              >
-                Tambah Pengeluaran
-              </Button>
-            </div>
+            <Button
+              variant='secondary'
+              size='sm'
+              leftIcon={<i className='fa-solid fa-download' />}
+            >
+              Export
+            </Button>
           </div>
         </div>
 
@@ -672,138 +427,123 @@ export default function ExpenseClient({ user }) {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
+            gridTemplateColumns: "repeat(3, 1fr)",
             gap: 14,
           }}
         >
           <StatCard
-            label='Total Pengeluaran'
+            label='Total Biaya Produksi'
             value={formatRupiah(totalAmount)}
             icon={<i className='fa-solid fa-arrow-trend-down' />}
             color='danger'
           />
           <StatCard
-            label='Sudah Dibayar'
-            value={formatRupiah(lunasAmount)}
-            icon={<i className='fa-solid fa-circle-check' />}
-            color='success'
-          />
-          <StatCard
-            label='Belum Dibayar'
-            value={formatRupiah(pendingAmount)}
-            icon={<i className='fa-solid fa-clock' />}
+            label='Bulan Ini'
+            value={formatRupiah(monthAmount)}
+            icon={<i className='fa-solid fa-calendar' />}
             color='warning'
           />
           <StatCard
-            label='Pembelian Stok'
-            value={formatRupiah(pembelianAmount)}
-            icon={<i className='fa-solid fa-boxes-stacked' />}
+            label='Hari Ini'
+            value={formatRupiah(todayAmount)}
+            icon={<i className='fa-solid fa-calendar-day' />}
             color='primary'
           />
         </div>
 
-        {/* category breakdown */}
-        <Card padding='md'>
-          <div style={{ marginBottom: 14 }}>
-            <div
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: "var(--color-text-primary)",
-                marginBottom: 2,
-              }}
-            >
-              Breakdown per Kategori
+        {/* cost breakdown */}
+        {costBreakdown.length > 0 && (
+          <Card padding='md'>
+            <div style={{ marginBottom: 14 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "var(--color-text-primary)",
+                  marginBottom: 2,
+                }}
+              >
+                Breakdown per Jenis Biaya
+              </div>
+              <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+                Distribusi biaya produksi keseluruhan
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
-              Distribusi pengeluaran bulan ini
-            </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {categoryBreakdown.map((cat) => {
-              const cfg = catConfig[cat.value] ?? {
-                icon: "fa-circle",
-                variant: "secondary",
-              };
-              return (
-                <div key={cat.value}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: 5,
-                    }}
-                  >
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {costBreakdown.map(({ key, label, total }) => {
+                const pct =
+                  totalAmount > 0 ? Math.round((total / totalAmount) * 100) : 0;
+                return (
+                  <div key={key}>
                     <div
-                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: 5,
+                      }}
                     >
-                      <i
-                        className={`fa-solid ${cfg.icon}`}
-                        style={{
-                          fontSize: 12,
-                          color: "var(--color-text-muted)",
-                          width: 16,
-                          textAlign: "center",
-                        }}
-                      />
                       <span
                         style={{
                           fontSize: 12,
                           color: "var(--color-text-primary)",
                         }}
                       >
-                        {cat.label}
+                        {label}
                       </span>
-                    </div>
-                    <div
-                      style={{ display: "flex", alignItems: "center", gap: 10 }}
-                    >
-                      <span
+                      <div
                         style={{
-                          fontSize: 12,
-                          fontWeight: 600,
-                          color: "var(--color-danger)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
                         }}
                       >
-                        {formatRupiah(cat.total)}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: "var(--color-text-muted)",
-                          width: 30,
-                          textAlign: "right",
-                        }}
-                      >
-                        {cat.pct}%
-                      </span>
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: "var(--color-danger)",
+                          }}
+                        >
+                          {formatRupiah(total)}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: "var(--color-text-muted)",
+                            width: 30,
+                            textAlign: "right",
+                          }}
+                        >
+                          {pct}%
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <div
-                    style={{
-                      height: 6,
-                      borderRadius: 99,
-                      background: "var(--color-bg-muted)",
-                      overflow: "hidden",
-                    }}
-                  >
                     <div
                       style={{
-                        height: "100%",
-                        width: `${cat.pct}%`,
+                        height: 6,
                         borderRadius: 99,
-                        background: "var(--color-danger)",
-                        opacity: cat.pct < 20 ? 0.5 : cat.pct < 50 ? 0.75 : 1,
-                        transition: "width .5s",
+                        background: "var(--color-bg-muted)",
+                        overflow: "hidden",
                       }}
-                    />
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${pct}%`,
+                          borderRadius: 99,
+                          background: "var(--color-danger)",
+                          opacity: pct < 20 ? 0.5 : pct < 50 ? 0.75 : 1,
+                          transition: "width .5s",
+                        }}
+                      />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
+                );
+              })}
+            </div>
+          </Card>
+        )}
 
         {/* toolbar */}
         <Card padding='sm'>
@@ -818,7 +558,7 @@ export default function ExpenseClient({ user }) {
           >
             <div style={{ flex: 1, minWidth: 220 }}>
               <SearchInput
-                placeholder='Cari keterangan atau nomor ref...'
+                placeholder='Cari pelanggan, style, atau nomor order...'
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -827,22 +567,6 @@ export default function ExpenseClient({ user }) {
                 size='sm'
               />
             </div>
-            <select
-              className='input-base input-default input-sm select-base'
-              value={filterCat}
-              onChange={(e) => {
-                setFilterCat(e.target.value);
-                setPage(1);
-              }}
-              style={{ width: 170, paddingRight: 32 }}
-            >
-              <option value=''>Semua Kategori</option>
-              {EXPENSE_CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
             <select
               className='input-base input-default input-sm select-base'
               value={filterMethod}
@@ -858,19 +582,6 @@ export default function ExpenseClient({ user }) {
                   {m.label}
                 </option>
               ))}
-            </select>
-            <select
-              className='input-base input-default input-sm select-base'
-              value={filterStatus}
-              onChange={(e) => {
-                setFilterStatus(e.target.value);
-                setPage(1);
-              }}
-              style={{ width: 140, paddingRight: 32 }}
-            >
-              <option value=''>Semua Status</option>
-              <option value='lunas'>Lunas</option>
-              <option value='pending'>Pending</option>
             </select>
             <select
               className='input-base input-default input-sm select-base'
@@ -906,14 +617,16 @@ export default function ExpenseClient({ user }) {
             <strong style={{ color: "var(--color-text-primary)" }}>
               {filtered.length}
             </strong>{" "}
-            transaksi
+            item
             {(search || activeFilters.length > 0) && " (difilter)"}
             {filtered.length > 0 && (
               <>
                 {" "}
                 · Total{" "}
                 <strong style={{ color: "var(--color-danger)" }}>
-                  {formatRupiah(filtered.reduce((s, i) => s + i.amount, 0))}
+                  {formatRupiah(
+                    filtered.reduce((s, i) => s + (i.amount ?? 0), 0),
+                  )}
                 </strong>
               </>
             )}
@@ -933,11 +646,11 @@ export default function ExpenseClient({ user }) {
               title='Tidak ada pengeluaran'
               description={
                 search || activeFilters.length > 0
-                  ? "Tidak ada transaksi yang cocok dengan filter."
-                  : 'Belum ada pengeluaran yang dicatat. Klik "Tambah Pengeluaran" untuk mulai.'
+                  ? "Tidak ada data yang cocok dengan filter."
+                  : "Belum ada biaya produksi tercatat. Tambahkan biaya pada halaman order."
               }
               action={
-                search || activeFilters.length > 0 ? (
+                (search || activeFilters.length > 0) && (
                   <Button
                     variant='secondary'
                     onClick={() => {
@@ -946,17 +659,6 @@ export default function ExpenseClient({ user }) {
                     }}
                   >
                     Reset Filter
-                  </Button>
-                ) : (
-                  <Button
-                    variant='primary'
-                    leftIcon={<i className='fa-solid fa-plus' />}
-                    onClick={() => {
-                      setEditItem(null);
-                      setFormOpen(true);
-                    }}
-                  >
-                    Tambah Pengeluaran
                   </Button>
                 )
               }
@@ -980,12 +682,11 @@ export default function ExpenseClient({ user }) {
                     }}
                   >
                     {[
-                      "Tanggal / Ref",
-                      "Keterangan",
-                      "Kategori",
+                      "Tanggal / Order",
+                      "Pelanggan / Style",
+                      "Jenis Biaya",
                       "Metode",
                       "Jumlah",
-                      "Status",
                       "",
                     ].map((h, i) => (
                       <th
@@ -993,13 +694,7 @@ export default function ExpenseClient({ user }) {
                         style={{
                           padding: "10px 14px",
                           textAlign:
-                            i === 4
-                              ? "right"
-                              : i === 5
-                                ? "center"
-                                : i === 6
-                                  ? "right"
-                                  : "left",
+                            i === 4 ? "right" : i === 5 ? "right" : "left",
                           fontSize: 11,
                           fontWeight: 600,
                           textTransform: "uppercase",
@@ -1018,11 +713,10 @@ export default function ExpenseClient({ user }) {
                     <ExpenseTableRow
                       key={item.id}
                       item={item}
-                      onEdit={(i) => {
-                        setEditItem(i);
-                        setFormOpen(true);
+                      onDetail={(i) => {
+                        setDetailItem(i);
+                        setDetailOpen(true);
                       }}
-                      onDelete={setDeleteTarget}
                     />
                   ))}
                 </tbody>
@@ -1042,7 +736,7 @@ export default function ExpenseClient({ user }) {
                         color: "var(--color-text-muted)",
                       }}
                     >
-                      Total halaman ini ({paginated.length} transaksi)
+                      Total halaman ini ({paginated.length} item)
                     </td>
                     <td
                       style={{
@@ -1054,10 +748,10 @@ export default function ExpenseClient({ user }) {
                       }}
                     >
                       {formatRupiah(
-                        paginated.reduce((s, i) => s + i.amount, 0),
+                        paginated.reduce((s, i) => s + (i.amount ?? 0), 0),
                       )}
                     </td>
-                    <td colSpan={2} />
+                    <td />
                   </tr>
                 </tfoot>
               </table>
@@ -1080,25 +774,13 @@ export default function ExpenseClient({ user }) {
         )}
       </div>
 
-      <ExpenseFormModal
-        open={formOpen}
+      <CostDetailModal
+        open={detailOpen}
         onClose={() => {
-          setFormOpen(false);
-          setEditItem(null);
+          setDetailOpen(false);
+          setDetailItem(null);
         }}
-        onSave={handleSave}
-        initial={editItem}
-      />
-
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
-        title='Hapus Pengeluaran'
-        message={`Transaksi "${deleteTarget?.ref} – ${deleteTarget?.description}" akan dihapus permanen.`}
-        variant='danger'
-        confirmText='Ya, Hapus'
-        loading={deleting}
+        item={detailItem}
       />
     </DashboardLayout>
   );

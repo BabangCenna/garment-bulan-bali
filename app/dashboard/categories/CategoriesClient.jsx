@@ -1595,7 +1595,7 @@ export default function CategoriesClient({
     initialSizes.length + initialStyles.length + initialFabrics.length;
 
   return (
-    <DashboardLayout activeKey='categories'>
+    <DashboardLayout activeKey='categories' user={user}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         <div>
           <Breadcrumb

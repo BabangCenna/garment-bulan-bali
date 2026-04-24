@@ -4,59 +4,13 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import Badge from "@/components/ui/data/Badge";
 import Card from "@/components/ui/data/Card";
 import StatCard from "@/components/ui/data/StatCard";
-import EmptyState from "@/components/ui/data/EmptyState";
 import Button from "@/components/ui/button/Button";
 import ButtonGroup from "@/components/ui/button/ButtonGroup";
 import Breadcrumb from "@/components/ui/navigation/Breadcrumb";
 import ProgressBar from "@/components/ui/feedback/ProgressBar";
 
-// ─── RAW DATA (sama persis seperti income & expense) ──────────────
-const INCOME_DATA = [
-  { date: "2025-01-22", category: "penjualan", amount: 875000 },
-  { date: "2025-01-22", category: "penjualan", amount: 1240000 },
-  { date: "2025-01-21", category: "penjualan", amount: 3500000 },
-  { date: "2025-01-21", category: "jasa", amount: 250000 },
-  { date: "2025-01-20", category: "penjualan", amount: 660000 },
-  { date: "2025-01-20", category: "penjualan", amount: 1875000 },
-  { date: "2025-01-19", category: "penjualan", amount: 945000 },
-  { date: "2025-01-19", category: "investasi", amount: 412500 },
-  { date: "2025-01-18", category: "penjualan", amount: 520000 },
-  { date: "2025-01-18", category: "lainnya", amount: 175000 },
-  { date: "2025-01-17", category: "penjualan", amount: 710000 },
-  { date: "2025-01-17", category: "penjualan", amount: 990000 },
-  { date: "2025-01-16", category: "penjualan", amount: 2100000 },
-  { date: "2025-01-15", category: "jasa", amount: 500000 },
-  { date: "2025-01-15", category: "penjualan", amount: 430000 },
-];
-
-const EXPENSE_DATA = [
-  { date: "2025-01-22", category: "pembelian", amount: 4250000 },
-  { date: "2025-01-22", category: "utilitas", amount: 875000 },
-  { date: "2025-01-21", category: "marketing", amount: 500000 },
-  { date: "2025-01-20", category: "gaji", amount: 8500000 },
-  { date: "2025-01-20", category: "pembelian", amount: 2100000 },
-  { date: "2025-01-19", category: "operasional", amount: 3500000 },
-  { date: "2025-01-18", category: "operasional", amount: 185000 },
-  { date: "2025-01-17", category: "operasional", amount: 150000 },
-  { date: "2025-01-17", category: "pembelian", amount: 1750000 },
-  { date: "2025-01-16", category: "utilitas", amount: 320000 },
-  { date: "2025-01-15", category: "marketing", amount: 200000 },
-  { date: "2025-01-15", category: "gaji", amount: 300000 },
-];
-
-// daily aggregation
-const DAILY_RANGE = [
-  "2025-01-15",
-  "2025-01-16",
-  "2025-01-17",
-  "2025-01-18",
-  "2025-01-19",
-  "2025-01-20",
-  "2025-01-21",
-  "2025-01-22",
-];
-
-const formatRupiah = (n) => "Rp " + Number(n).toLocaleString("id-ID");
+// ─── HELPERS ──────────────────────────────────────────────────────
+const formatRupiah = (n) => "Rp " + Number(n || 0).toLocaleString("id-ID");
 const formatRupiahShort = (n) => {
   if (n >= 1_000_000)
     return "Rp " + (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "jt";
@@ -65,24 +19,40 @@ const formatRupiahShort = (n) => {
 };
 const formatDate = (d) =>
   new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+const formatDateFull = (d) =>
+  new Date(d).toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+const formatMonthYear = (d) =>
+  new Date(d + "-01").toLocaleDateString("id-ID", {
+    month: "long",
+    year: "numeric",
+  });
 
-const INCOME_CAT_LABELS = {
-  penjualan: "Penjualan Produk",
-  jasa: "Jasa / Layanan",
-  investasi: "Hasil Investasi",
-  lainnya: "Lain-lain",
-};
-const EXPENSE_CAT_LABELS = {
-  pembelian: "Pembelian Stok",
-  operasional: "Operasional",
-  gaji: "Gaji & Tunjangan",
-  utilitas: "Utilitas & Listrik",
-  marketing: "Marketing & Iklan",
-  lainnya: "Lain-lain",
-};
+const COST_FIELDS = [
+  { key: "sewing", label: "Jahit" },
+  { key: "buttonhole", label: "Kancing" },
+  { key: "swir", label: "Swir" },
+  { key: "assembly", label: "Assembly" },
+  { key: "embroidery", label: "Bordir" },
+  { key: "prewash", label: "Prewash" },
+];
+
+// get all unique months from data as "YYYY-MM"
+function getMonths(income, expense) {
+  const set = new Set();
+  [...income, ...expense].forEach((r) => {
+    if (r.date) set.add((r.date ?? "").slice(0, 7));
+  });
+  return [...set].sort((a, b) => b.localeCompare(a));
+}
 
 // ─── MINI BAR CHART ───────────────────────────────────────────────
 function MiniBarChart({ daily, maxVal }) {
+  if (!daily.length) return null;
   return (
     <div
       style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80 }}
@@ -150,7 +120,7 @@ function MiniBarChart({ daily, maxVal }) {
   );
 }
 
-// ─── BREAKDOWN SECTION ────────────────────────────────────────────
+// ─── BREAKDOWN BAR ────────────────────────────────────────────────
 function BreakdownBar({ label, amount, total, variant }) {
   const pct = total > 0 ? Math.round((amount / total) * 100) : 0;
   return (
@@ -200,12 +170,10 @@ function BreakdownBar({ label, amount, total, variant }) {
   );
 }
 
-// ─── JOURNAL TABLE ────────────────────────────────────────────────
+// ─── JOURNAL ROW ─────────────────────────────────────────────────
 function JournalRow({ date, entries, incomeTotal, expenseTotal }) {
-  const net = incomeTotal - expenseTotal;
   return (
     <>
-      {/* date group header */}
       <tr
         style={{
           background: "var(--color-bg-subtle)",
@@ -222,12 +190,7 @@ function JournalRow({ date, entries, incomeTotal, expenseTotal }) {
               letterSpacing: ".05em",
             }}
           >
-            {new Date(date).toLocaleDateString("id-ID", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
+            {formatDateFull(date)}
           </span>
         </td>
       </tr>
@@ -300,7 +263,7 @@ function JournalRow({ date, entries, incomeTotal, expenseTotal }) {
       <tr
         style={{
           borderBottom: "2px solid var(--color-border)",
-          background: "var(--color-bg-muted, var(--color-bg-subtle))",
+          background: "var(--color-bg-subtle)",
         }}
       >
         <td colSpan={2} style={{ padding: "7px 14px", paddingLeft: 28 }}>
@@ -337,288 +300,112 @@ function JournalRow({ date, entries, incomeTotal, expenseTotal }) {
 }
 
 // ─── MAIN CLIENT ──────────────────────────────────────────────────
-export default function ReportClient({ user }) {
-  const [period, setPeriod] = useState("bulan"); // bulan | minggu
-  const [view, setView] = useState("ringkasan"); // ringkasan | jurnal
+export default function ReportClient({ user, income, expense }) {
+  const [view, setView] = useState("ringkasan");
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    // default to latest month that has data
+    const all = [...income, ...expense];
+    if (!all.length) return "";
+    return (
+      all
+        .map((r) => (r.date ?? "").slice(0, 7))
+        .sort((a, b) => b.localeCompare(a))[0] ?? ""
+    );
+  });
 
-  // ── derived data ──────────────────────────────────────────────
-  const totalIncome = INCOME_DATA.reduce((s, i) => s + i.amount, 0);
-  const totalExpense = EXPENSE_DATA.reduce((s, i) => s + i.amount, 0);
+  const months = useMemo(() => getMonths(income, expense), [income, expense]);
+
+  // filter by selected month
+  const filteredIncome = useMemo(
+    () =>
+      selectedMonth
+        ? income.filter((r) => (r.date ?? "").startsWith(selectedMonth))
+        : income,
+    [income, selectedMonth],
+  );
+
+  const filteredExpense = useMemo(
+    () =>
+      selectedMonth
+        ? expense.filter((r) => (r.date ?? "").startsWith(selectedMonth))
+        : expense,
+    [expense, selectedMonth],
+  );
+
+  // totals
+  const totalIncome = filteredIncome.reduce((s, r) => s + (r.amount ?? 0), 0);
+  const totalExpense = filteredExpense.reduce((s, r) => s + (r.amount ?? 0), 0);
   const netProfit = totalIncome - totalExpense;
   const profitMargin =
     totalIncome > 0 ? Math.round((netProfit / totalIncome) * 100) : 0;
 
-  const daily = useMemo(
-    () =>
-      DAILY_RANGE.map((date) => ({
-        date,
-        income: INCOME_DATA.filter((i) => i.date === date).reduce(
-          (s, i) => s + i.amount,
-          0,
-        ),
-        expense: EXPENSE_DATA.filter((i) => i.date === date).reduce(
-          (s, i) => s + i.amount,
-          0,
-        ),
-      })),
-    [],
+  // daily aggregation
+  const daily = useMemo(() => {
+    const daySet = new Set([
+      ...filteredIncome.map((r) => r.date),
+      ...filteredExpense.map((r) => r.date),
+    ]);
+    return [...daySet].sort().map((date) => ({
+      date,
+      income: filteredIncome
+        .filter((r) => r.date === date)
+        .reduce((s, r) => s + (r.amount ?? 0), 0),
+      expense: filteredExpense
+        .filter((r) => r.date === date)
+        .reduce((s, r) => s + (r.amount ?? 0), 0),
+    }));
+  }, [filteredIncome, filteredExpense]);
+
+  const maxDaily = Math.max(
+    ...daily.map((d) => Math.max(d.income, d.expense)),
+    1,
   );
 
-  const maxDaily = Math.max(...daily.map((d) => Math.max(d.income, d.expense)));
-
-  // income breakdown
+  // income breakdown — by customer (since all income is penjualan)
   const incomeBreakdown = useMemo(() => {
-    const cats = [...new Set(INCOME_DATA.map((i) => i.category))];
-    return cats
-      .map((cat) => ({
-        cat,
-        label: INCOME_CAT_LABELS[cat] ?? cat,
-        amount: INCOME_DATA.filter((i) => i.category === cat).reduce(
-          (s, i) => s + i.amount,
-          0,
-        ),
-      }))
-      .sort((a, b) => b.amount - a.amount);
-  }, []);
+    const map = {};
+    filteredIncome.forEach((r) => {
+      const key = r.customer_name ?? "Lainnya";
+      map[key] = (map[key] ?? 0) + (r.amount ?? 0);
+    });
+    return Object.entries(map)
+      .map(([label, amount]) => ({ label, amount }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 6); // top 6
+  }, [filteredIncome]);
 
-  // expense breakdown
+  // expense breakdown — by cost type
   const expenseBreakdown = useMemo(() => {
-    const cats = [...new Set(EXPENSE_DATA.map((i) => i.category))];
-    return cats
-      .map((cat) => ({
-        cat,
-        label: EXPENSE_CAT_LABELS[cat] ?? cat,
-        amount: EXPENSE_DATA.filter((i) => i.category === cat).reduce(
-          (s, i) => s + i.amount,
-          0,
-        ),
-      }))
+    return COST_FIELDS.map(({ key, label }) => ({
+      label,
+      amount: filteredExpense.reduce(
+        (s, r) => s + (r[key] ?? 0) * (r.qty ?? 1),
+        0,
+      ),
+    }))
+      .filter((c) => c.amount > 0)
       .sort((a, b) => b.amount - a.amount);
-  }, []);
+  }, [filteredExpense]);
 
-  // journal entries (combined, grouped by date)
+  // journal grouped by date
   const journalByDate = useMemo(() => {
-    const INCOME_DETAIL = [
-      {
-        date: "2025-01-22",
-        ref: "INC-0001",
-        description: "Penjualan kasir – sesi pagi",
-        type: "income",
-        amount: 875000,
-        note: "",
-      },
-      {
-        date: "2025-01-22",
-        ref: "INC-0002",
-        description: "Penjualan kasir – sesi siang",
-        type: "income",
-        amount: 1240000,
-        note: "",
-      },
-      {
-        date: "2025-01-21",
-        ref: "INC-0003",
-        description: "Transfer pelanggan grosir",
-        type: "income",
-        amount: 3500000,
-        note: "Toko Maju Jaya",
-      },
-      {
-        date: "2025-01-21",
-        ref: "INC-0004",
-        description: "Jasa konsultasi kecantikan",
-        type: "income",
-        amount: 250000,
-        note: "",
-      },
-      {
-        date: "2025-01-20",
-        ref: "INC-0005",
-        description: "Penjualan kasir – sesi pagi",
-        type: "income",
-        amount: 660000,
-        note: "",
-      },
-      {
-        date: "2025-01-20",
-        ref: "INC-0006",
-        description: "Penjualan online Tokopedia",
-        type: "income",
-        amount: 1875000,
-        note: "",
-      },
-      {
-        date: "2025-01-19",
-        ref: "INC-0007",
-        description: "Penjualan kasir – sesi sore",
-        type: "income",
-        amount: 945000,
-        note: "",
-      },
-      {
-        date: "2025-01-19",
-        ref: "INC-0008",
-        description: "Pendapatan bunga deposito",
-        type: "income",
-        amount: 412500,
-        note: "",
-      },
-      {
-        date: "2025-01-18",
-        ref: "INC-0009",
-        description: "Penjualan kasir – sesi pagi",
-        type: "income",
-        amount: 520000,
-        note: "",
-      },
-      {
-        date: "2025-01-18",
-        ref: "INC-0010",
-        description: "Retur vendor – lebih bayar",
-        type: "income",
-        amount: 175000,
-        note: "",
-      },
-      {
-        date: "2025-01-17",
-        ref: "INC-0011",
-        description: "Penjualan kasir – sesi pagi",
-        type: "income",
-        amount: 710000,
-        note: "",
-      },
-      {
-        date: "2025-01-17",
-        ref: "INC-0012",
-        description: "Penjualan kasir – sesi siang",
-        type: "income",
-        amount: 990000,
-        note: "",
-      },
-      {
-        date: "2025-01-16",
-        ref: "INC-0013",
-        description: "Penjualan online Shopee",
-        type: "income",
-        amount: 2100000,
-        note: "",
-      },
-      {
-        date: "2025-01-15",
-        ref: "INC-0014",
-        description: "Jasa pelatihan karyawan baru",
-        type: "income",
-        amount: 500000,
-        note: "",
-      },
-      {
-        date: "2025-01-15",
-        ref: "INC-0015",
-        description: "Penjualan kasir – sesi pagi",
-        type: "income",
-        amount: 430000,
-        note: "",
-      },
-    ];
-    const EXPENSE_DETAIL = [
-      {
-        date: "2025-01-22",
-        ref: "EXP-0001",
-        description: "Restock Wardah & Scarlett",
-        type: "expense",
-        amount: 4250000,
-        note: "",
-      },
-      {
-        date: "2025-01-22",
-        ref: "EXP-0002",
-        description: "Biaya listrik bulan Januari",
-        type: "expense",
-        amount: 875000,
-        note: "",
-      },
-      {
-        date: "2025-01-21",
-        ref: "EXP-0003",
-        description: "Iklan Instagram & TikTok",
-        type: "expense",
-        amount: 500000,
-        note: "",
-      },
-      {
-        date: "2025-01-20",
-        ref: "EXP-0004",
-        description: "Gaji karyawan + kasir (Jan 2025)",
-        type: "expense",
-        amount: 8500000,
-        note: "",
-      },
-      {
-        date: "2025-01-20",
-        ref: "EXP-0005",
-        description: "Restock Cetaphil & Blackmores",
-        type: "expense",
-        amount: 2100000,
-        note: "",
-      },
-      {
-        date: "2025-01-19",
-        ref: "EXP-0006",
-        description: "Sewa toko bulan Februari",
-        type: "expense",
-        amount: 3500000,
-        note: "",
-      },
-      {
-        date: "2025-01-18",
-        ref: "EXP-0007",
-        description: "Alat kebersihan toko",
-        type: "expense",
-        amount: 185000,
-        note: "",
-      },
-      {
-        date: "2025-01-17",
-        ref: "EXP-0008",
-        description: "Printer struk kasir – servis",
-        type: "expense",
-        amount: 150000,
-        note: "",
-      },
-      {
-        date: "2025-01-17",
-        ref: "EXP-0009",
-        description: "Restock Johnson's & Cap Lang",
-        type: "expense",
-        amount: 1750000,
-        note: "",
-      },
-      {
-        date: "2025-01-16",
-        ref: "EXP-0010",
-        description: "Biaya internet toko",
-        type: "expense",
-        amount: 320000,
-        note: "",
-      },
-      {
-        date: "2025-01-15",
-        ref: "EXP-0011",
-        description: "Desain banner promosi",
-        type: "expense",
-        amount: 200000,
-        note: "",
-      },
-      {
-        date: "2025-01-15",
-        ref: "EXP-0012",
-        description: "Bonus karyawan terbaik",
-        type: "expense",
-        amount: 300000,
-        note: "",
-      },
-    ];
-    const all = [...INCOME_DETAIL, ...EXPENSE_DETAIL].sort((a, b) => {
+    const incomeEntries = filteredIncome.map((r) => ({
+      ref: r.ref,
+      date: r.date,
+      description: r.customer_name ?? "—",
+      note: r.note ?? "",
+      type: "income",
+      amount: r.amount ?? 0,
+    }));
+    const expenseEntries = filteredExpense.map((r) => ({
+      ref: r.ref,
+      date: r.date,
+      description: `${r.customer_name ?? "—"}${r.style_name ? ` · ${r.style_name}` : ""}`,
+      note: r.note ?? "",
+      type: "expense",
+      amount: r.amount ?? 0,
+    }));
+    const all = [...incomeEntries, ...expenseEntries].sort((a, b) => {
       if (b.date !== a.date) return b.date.localeCompare(a.date);
       return a.type.localeCompare(b.type);
     });
@@ -628,10 +415,14 @@ export default function ReportClient({ user }) {
       grouped[e.date].push(e);
     });
     return Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a));
-  }, []);
+  }, [filteredIncome, filteredExpense]);
+
+  const periodLabel = selectedMonth
+    ? formatMonthYear(selectedMonth)
+    : "Semua Periode";
 
   return (
-    <DashboardLayout activeKey='finance'>
+    <DashboardLayout activeKey='finance' user={user}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {/* header */}
         <div>
@@ -675,7 +466,7 @@ export default function ReportClient({ user }) {
                   margin: 0,
                 }}
               >
-                Periode: Januari 2025
+                Periode: {periodLabel}
               </p>
             </div>
             <div
@@ -686,6 +477,20 @@ export default function ReportClient({ user }) {
                 flexWrap: "wrap",
               }}
             >
+              {/* month picker */}
+              <select
+                className='input-base input-default input-sm select-base'
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={{ width: 170, paddingRight: 32 }}
+              >
+                <option value=''>Semua Periode</option>
+                {months.map((m) => (
+                  <option key={m} value={m}>
+                    {formatMonthYear(m)}
+                  </option>
+                ))}
+              </select>
               <ButtonGroup
                 mode='toggle'
                 size='sm'
@@ -762,9 +567,31 @@ export default function ReportClient({ user }) {
           />
         </div>
 
-        {view === "ringkasan" ? (
+        {/* no data state */}
+        {filteredIncome.length === 0 && filteredExpense.length === 0 ? (
+          <Card padding='lg'>
+            <div
+              style={{
+                textAlign: "center",
+                padding: "40px 0",
+                color: "var(--color-text-muted)",
+              }}
+            >
+              <i
+                className='fa-solid fa-chart-pie'
+                style={{ fontSize: 32, marginBottom: 12, display: "block" }}
+              />
+              <div style={{ fontSize: 14, fontWeight: 600 }}>
+                Tidak ada data
+              </div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>
+                Belum ada transaksi untuk periode ini.
+              </div>
+            </div>
+          </Card>
+        ) : view === "ringkasan" ? (
           <>
-            {/* P&L summary card */}
+            {/* P&L summary */}
             <Card padding='md'>
               <div style={{ marginBottom: 16 }}>
                 <div
@@ -778,11 +605,10 @@ export default function ReportClient({ user }) {
                   Laporan Laba Rugi
                 </div>
                 <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
-                  Ringkasan periode Januari 2025
+                  Ringkasan {periodLabel}
                 </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                {/* income row */}
                 <div
                   style={{
                     display: "flex",
@@ -821,7 +647,6 @@ export default function ReportClient({ user }) {
                     {formatRupiah(totalIncome)}
                   </span>
                 </div>
-                {/* expense row */}
                 <div
                   style={{
                     display: "flex",
@@ -860,7 +685,6 @@ export default function ReportClient({ user }) {
                     ({formatRupiah(totalExpense)})
                   </span>
                 </div>
-                {/* net */}
                 <div
                   style={{
                     display: "flex",
@@ -920,7 +744,7 @@ export default function ReportClient({ user }) {
                 gap: 14,
               }}
             >
-              {/* chart */}
+              {/* daily chart */}
               <Card padding='md' style={{ gridColumn: "1 / -1" }}>
                 <div style={{ marginBottom: 14 }}>
                   <div
@@ -947,65 +771,45 @@ export default function ReportClient({ user }) {
                           color: "var(--color-text-muted)",
                         }}
                       >
-                        15 Jan – 22 Jan 2025
+                        {periodLabel}
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 16 }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 5,
-                        }}
-                      >
+                      {[
+                        ["var(--color-success)", "Pemasukan"],
+                        ["var(--color-danger)", "Pengeluaran"],
+                      ].map(([color, label]) => (
                         <div
+                          key={label}
                           style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: 2,
-                            background: "var(--color-success)",
-                            opacity: 0.85,
-                          }}
-                        />
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: "var(--color-text-muted)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 5,
                           }}
                         >
-                          Pemasukan
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 5,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: 2,
-                            background: "var(--color-danger)",
-                            opacity: 0.85,
-                          }}
-                        />
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: "var(--color-text-muted)",
-                          }}
-                        >
-                          Pengeluaran
-                        </span>
-                      </div>
+                          <div
+                            style={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: 2,
+                              background: color,
+                              opacity: 0.85,
+                            }}
+                          />
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: "var(--color-text-muted)",
+                            }}
+                          >
+                            {label}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
                 <MiniBarChart daily={daily} maxVal={maxDaily} />
-                {/* axis labels */}
                 <div
                   style={{
                     display: "flex",
@@ -1043,21 +847,29 @@ export default function ReportClient({ user }) {
                   <div
                     style={{ fontSize: 11, color: "var(--color-text-muted)" }}
                   >
-                    Breakdown per kategori
+                    Top pelanggan
                   </div>
                 </div>
                 <div
                   style={{ display: "flex", flexDirection: "column", gap: 12 }}
                 >
-                  {incomeBreakdown.map((c) => (
-                    <BreakdownBar
-                      key={c.cat}
-                      label={c.label}
-                      amount={c.amount}
-                      total={totalIncome}
-                      variant='success'
-                    />
-                  ))}
+                  {incomeBreakdown.length > 0 ? (
+                    incomeBreakdown.map((c) => (
+                      <BreakdownBar
+                        key={c.label}
+                        label={c.label}
+                        amount={c.amount}
+                        total={totalIncome}
+                        variant='success'
+                      />
+                    ))
+                  ) : (
+                    <span
+                      style={{ fontSize: 12, color: "var(--color-text-muted)" }}
+                    >
+                      Tidak ada data
+                    </span>
+                  )}
                 </div>
               </Card>
 
@@ -1077,25 +889,33 @@ export default function ReportClient({ user }) {
                   <div
                     style={{ fontSize: 11, color: "var(--color-text-muted)" }}
                   >
-                    Breakdown per kategori
+                    Breakdown per jenis biaya
                   </div>
                 </div>
                 <div
                   style={{ display: "flex", flexDirection: "column", gap: 12 }}
                 >
-                  {expenseBreakdown.map((c) => (
-                    <BreakdownBar
-                      key={c.cat}
-                      label={c.label}
-                      amount={c.amount}
-                      total={totalExpense}
-                      variant='danger'
-                    />
-                  ))}
+                  {expenseBreakdown.length > 0 ? (
+                    expenseBreakdown.map((c) => (
+                      <BreakdownBar
+                        key={c.label}
+                        label={c.label}
+                        amount={c.amount}
+                        total={totalExpense}
+                        variant='danger'
+                      />
+                    ))
+                  ) : (
+                    <span
+                      style={{ fontSize: 12, color: "var(--color-text-muted)" }}
+                    >
+                      Tidak ada data
+                    </span>
+                  )}
                 </div>
               </Card>
 
-              {/* daily best/worst */}
+              {/* daily performance */}
               <Card padding='md'>
                 <div style={{ marginBottom: 14 }}>
                   <div
@@ -1120,78 +940,76 @@ export default function ReportClient({ user }) {
                   {[...daily]
                     .map((d) => ({ ...d, net: d.income - d.expense }))
                     .sort((a, b) => b.net - a.net)
-                    .map((d, i) => {
-                      const isPositive = d.net >= 0;
-                      return (
+                    .map((d, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
                         <div
-                          key={i}
                           style={{
                             display: "flex",
-                            justifyContent: "space-between",
                             alignItems: "center",
+                            gap: 8,
                           }}
                         >
-                          <div
+                          <span
                             style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              width: 18,
+                              height: 18,
+                              borderRadius: "50%",
                               display: "flex",
                               alignItems: "center",
-                              gap: 8,
+                              justifyContent: "center",
+                              background:
+                                i === 0
+                                  ? "var(--color-success)"
+                                  : i === daily.length - 1
+                                    ? "var(--color-danger)"
+                                    : "var(--color-bg-muted)",
+                              color:
+                                i === 0 || i === daily.length - 1
+                                  ? "white"
+                                  : "var(--color-text-muted)",
                             }}
                           >
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                width: 18,
-                                height: 18,
-                                borderRadius: "50%",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                background:
-                                  i === 0
-                                    ? "var(--color-success)"
-                                    : i === daily.length - 1
-                                      ? "var(--color-danger)"
-                                      : "var(--color-bg-muted)",
-                                color:
-                                  i === 0 || i === daily.length - 1
-                                    ? "white"
-                                    : "var(--color-text-muted)",
-                              }}
-                            >
-                              {i + 1}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 12,
-                                color: "var(--color-text-primary)",
-                              }}
-                            >
-                              {formatDate(d.date)}
-                            </span>
-                          </div>
+                            {i + 1}
+                          </span>
                           <span
                             style={{
                               fontSize: 12,
-                              fontWeight: 700,
-                              color: isPositive
-                                ? "var(--color-success)"
-                                : "var(--color-danger)",
+                              color: "var(--color-text-primary)",
                             }}
                           >
-                            {isPositive ? "+" : ""}
-                            {formatRupiahShort(d.net)}
+                            {formatDate(d.date)}
                           </span>
                         </div>
-                      );
-                    })}
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color:
+                              d.net >= 0
+                                ? "var(--color-success)"
+                                : "var(--color-danger)",
+                          }}
+                        >
+                          {d.net >= 0 ? "+" : ""}
+                          {formatRupiahShort(d.net)}
+                        </span>
+                      </div>
+                    ))}
                 </div>
               </Card>
             </div>
           </>
         ) : (
-          /* ── JURNAL VIEW ──────────────────────────────────────── */
+          /* ── JURNAL VIEW ────────────────────────────────────────── */
           <Card padding='none'>
             <div
               style={{
@@ -1213,59 +1031,39 @@ export default function ReportClient({ user }) {
                   Buku Jurnal Harian
                 </div>
                 <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
-                  {INCOME_DATA.length + EXPENSE_DATA.length} entri · Januari
-                  2025
+                  {filteredIncome.length + filteredExpense.length} entri ·{" "}
+                  {periodLabel}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 16 }}>
-                <div style={{ textAlign: "right" }}>
-                  <div
-                    style={{ fontSize: 11, color: "var(--color-text-muted)" }}
-                  >
-                    Total Masuk
+                {[
+                  {
+                    label: "Total Masuk",
+                    value: totalIncome,
+                    color: "var(--color-success)",
+                  },
+                  {
+                    label: "Total Keluar",
+                    value: totalExpense,
+                    color: "var(--color-danger)",
+                  },
+                  {
+                    label: "Laba Bersih",
+                    value: netProfit,
+                    color: "var(--color-primary)",
+                  },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ textAlign: "right" }}>
+                    <div
+                      style={{ fontSize: 11, color: "var(--color-text-muted)" }}
+                    >
+                      {label}
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color }}>
+                      {formatRupiah(value)}
+                    </div>
                   </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: "var(--color-success)",
-                    }}
-                  >
-                    {formatRupiah(totalIncome)}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div
-                    style={{ fontSize: 11, color: "var(--color-text-muted)" }}
-                  >
-                    Total Keluar
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: "var(--color-danger)",
-                    }}
-                  >
-                    {formatRupiah(totalExpense)}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div
-                    style={{ fontSize: 11, color: "var(--color-text-muted)" }}
-                  >
-                    Laba Bersih
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: "var(--color-primary)",
-                    }}
-                  >
-                    {formatRupiah(netProfit)}
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
             <div style={{ overflowX: "auto" }}>

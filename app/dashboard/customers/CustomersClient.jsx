@@ -913,7 +913,7 @@ function CustomerTableRow({
 }
 
 // ─── MAIN CLIENT ──────────────────────────────────────────────────
-export default function CustomersClient({ initialCustomers }) {
+export default function CustomersClient({ user, initialCustomers }) {
   const toast = useToast();
 
   const [customers, setCustomers] = useState(initialCustomers);
@@ -1069,7 +1069,7 @@ export default function CustomersClient({ initialCustomers }) {
   ).length;
 
   return (
-    <DashboardLayout activeKey='customers'>
+    <DashboardLayout activeKey='customers' user={user}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {/* page header */}
         <div>

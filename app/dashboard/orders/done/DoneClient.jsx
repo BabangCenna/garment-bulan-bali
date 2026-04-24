@@ -15,24 +15,25 @@ import SearchInput from "@/components/ui/form/SearchInput";
 import EmptyState from "@/components/ui/data/EmptyState";
 import Pagination from "@/components/ui/navigation/Pagination";
 import Breadcrumb from "@/components/ui/navigation/Breadcrumb";
-import Dropdown from "@/components/ui/navigation/Dropdown";
 import { OrderDetailModal, OrderCard } from "../_components";
 import {
-  DUMMY_ORDERS,
   ORDER_STATUSES,
   PAYMENT_STATUS,
   PAYMENT_METHODS,
   formatRupiah,
   formatDateTime,
 } from "../_data";
+import { printStruk } from "../_components/printStruk";
+import { printInvoice } from "../_components/printInvoice";
+import * as XLSX from "xlsx";
 
 const PAGE_SIZE = 8;
 
-export default function DoneClient({ user }) {
+export default function DoneClient({ user, initialOrders }) {
   const toast = useToast();
   const router = useRouter();
 
-  const [orders] = useState(DUMMY_ORDERS);
+  const [orders] = useState(initialOrders);
   const [view, setView] = useState("list");
   const [search, setSearch] = useState("");
   const [filterPay, setFilterPay] = useState("");
@@ -46,6 +47,56 @@ export default function DoneClient({ user }) {
     () => orders.filter((o) => o.status === "done"),
     [orders],
   );
+
+  const handleExport = () => {
+    const rows = filtered.map((o) => {
+      const itemCount = (o.items ?? []).reduce((s, i) => s + i.qty, 0);
+      const payLabel =
+        PAYMENT_METHODS.find((m) => m.value === o.paymentMethod)?.label ??
+        o.paymentMethod;
+      return {
+        "Kode Pesanan": o.code,
+        Pelanggan: o.customer.name,
+        Telepon: o.customer.phone,
+        "Jumlah Item": itemCount,
+        Total: o.finalTotal,
+        Diskon: o.discount ?? 0,
+        "Metode Bayar": payLabel,
+        "Biaya Produksi": o.productionCost ?? 0,
+        Margin: (o.finalTotal ?? 0) - (o.productionCost ?? 0),
+        "Waktu Selesai":
+          (o.updatedAt ?? o.createdAt)
+            ? new Date(o.updatedAt ?? o.createdAt).toLocaleDateString("id-ID", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "-",
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 20 }, // kode
+      { wch: 25 }, // pelanggan
+      { wch: 16 }, // telepon
+      { wch: 12 }, // item
+      { wch: 16 }, // total
+      { wch: 12 }, // diskon
+      { wch: 14 }, // metode
+      { wch: 18 }, // produksi
+      { wch: 14 }, // margin
+      { wch: 22 }, // waktu
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Pesanan Selesai");
+
+    const fileName = `pesanan_selesai_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
 
   const filtered = useMemo(() => {
     let arr = [...done];
@@ -79,19 +130,19 @@ export default function DoneClient({ user }) {
     setDetailOpen(true);
   };
 
-  // ── revenue analytics ─────────────────────────────────────────
+  // ── revenue analytics ──────────────────────────────────────────
   const totalRevenue = done.reduce((s, o) => s + o.finalTotal, 0);
-  const totalDiscount = done.reduce((s, o) => s + o.discount, 0);
+  const totalDiscount = done.reduce((s, o) => s + (o.discount ?? 0), 0);
   const avgOrder = done.length > 0 ? Math.round(totalRevenue / done.length) : 0;
 
-  // top product from done orders
+  // top products from done orders
   const productMap = {};
   done.forEach((o) => {
-    o.items.forEach((it) => {
-      if (!productMap[it.name])
-        productMap[it.name] = { name: it.name, qty: 0, revenue: 0 };
-      productMap[it.name].qty += it.qty;
-      productMap[it.name].revenue += it.qty * it.price;
+    (o.items ?? []).forEach((it) => {
+      const key = it.description || it.style_name || "Item";
+      if (!productMap[key]) productMap[key] = { name: key, qty: 0, revenue: 0 };
+      productMap[key].qty += it.qty;
+      productMap[key].revenue += it.qty * (it.invoice_price || 0);
     });
   });
   const topProducts = Object.values(productMap)
@@ -100,7 +151,7 @@ export default function DoneClient({ user }) {
   const maxQty = topProducts[0]?.qty ?? 1;
 
   return (
-    <DashboardLayout activeKey='orders'>
+    <DashboardLayout activeKey='orders' user={user}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {/* header */}
         <div>
@@ -153,6 +204,7 @@ export default function DoneClient({ user }) {
                 variant='secondary'
                 size='sm'
                 leftIcon={<i className='fa-solid fa-download' />}
+                onClick={handleExport}
               >
                 Export
               </Button>
@@ -202,7 +254,7 @@ export default function DoneClient({ user }) {
           />
         </div>
 
-        {/* top products mini analytics */}
+        {/* top products */}
         {topProducts.length > 0 && (
           <Card padding='md'>
             <div
@@ -274,10 +326,7 @@ export default function DoneClient({ user }) {
                           height: "100%",
                           borderRadius: 4,
                           width: `${(p.qty / maxQty) * 100}%`,
-                          background:
-                            i === 0
-                              ? "var(--color-primary)"
-                              : "var(--color-primary-light, var(--color-primary))",
+                          background: "var(--color-primary)",
                           opacity: 1 - i * 0.12,
                           transition: "width .4s",
                         }}
@@ -483,11 +532,13 @@ export default function DoneClient({ user }) {
                 </thead>
                 <tbody>
                   {paginated.map((o) => {
-                    const payCfg = PAYMENT_STATUS[o.paymentStatus];
                     const payLabel =
                       PAYMENT_METHODS.find((m) => m.value === o.paymentMethod)
                         ?.label ?? o.paymentMethod;
-                    const itemCount = o.items.reduce((s, i) => s + i.qty, 0);
+                    const itemCount = (o.items ?? []).reduce(
+                      (s, i) => s + i.qty,
+                      0,
+                    );
                     return (
                       <tr
                         key={o.id}
@@ -550,7 +601,7 @@ export default function DoneClient({ user }) {
                           >
                             {formatRupiah(o.finalTotal)}
                           </div>
-                          {o.discount > 0 && (
+                          {(o.discount ?? 0) > 0 && (
                             <div
                               style={{
                                 fontSize: 11,
@@ -577,7 +628,7 @@ export default function DoneClient({ user }) {
                               color: "var(--color-text-muted)",
                             }}
                           >
-                            {formatDateTime(o.updatedAt)}
+                            {formatDateTime(o.updatedAt ?? o.createdAt)}
                           </span>
                         </td>
                         <td
@@ -606,8 +657,17 @@ export default function DoneClient({ user }) {
                                 icon={<i className='fa-solid fa-print' />}
                                 size='sm'
                                 variant='ghost'
-                                label='Print'
-                                onClick={() => {}}
+                                label='Struk'
+                                onClick={() => printStruk(o)}
+                              />
+                            </Tooltip>
+                            <Tooltip content='Cetak Invoice' placement='top'>
+                              <IconButton
+                                icon={<i className='fa-solid fa-file-alt' />}
+                                size='sm'
+                                variant='ghost'
+                                label='Invoice'
+                                onClick={() => printInvoice(o)}
                               />
                             </Tooltip>
                           </div>

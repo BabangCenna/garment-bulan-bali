@@ -1,134 +1,27 @@
-// app/login/page.jsx
-"use client";
-import { useState } from "react";
-import { loginAction } from "@/app/actions/auth";
-import Input from "@/components/ui/form/Input";
-import Button from "@/components/ui/button/Button";
+import { getSiteConfig } from "@/app/actions/settings";
+import LandingNav from "@/components/landing/LandingNav";
+import HeroSection from "@/components/landing/HeroSection";
+import StylesSection from "@/components/landing/StylesSection";
+import FabricsSection from "@/components/landing/FabricsSection";
+import AboutSection from "@/components/landing/AboutSection";
+import ContactSection from "@/components/landing/ContactSection";
+import LandingFooter from "@/components/landing/LandingFooter";
 
-export default function LoginPage() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+export default async function LandingPage() {
+  const config = await getSiteConfig();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!username || !password) {
-      setError("Username dan password wajib diisi");
-      return;
-    }
-    setError("");
-    setLoading(true);
-
-    const formData = new FormData();
-    formData.append("username", username);
-    formData.append("password", password);
-
-    const result = await loginAction(formData);
-
-    // if loginAction redirects, code below never runs
-    // if it returns an error, show it
-    if (result?.error) {
-      setError(result.error);
-      setLoading(false);
-    }
-  };
+  // merge site + contact so nav/footer get one object like before
+  const site = { ...config.site, contact: config.contact };
 
   return (
-    <div className='login-page'>
-      {/* Left panel — branding */}
-      <div className='login-left'>
-        <div className='login-brand-bg' />
-        <div className='login-left-content'>
-          <div className='login-brand-icon'>
-            <i className='fa-solid fa-store' />
-          </div>
-          <h1 className='login-brand-name'>TokoKu</h1>
-          <p className='login-brand-tagline'>Sistem Manajemen Ritel Modern</p>
-          <div className='login-features'>
-            {[
-              { icon: "fa-cash-register", label: "Point of Sale" },
-              { icon: "fa-boxes-stacked", label: "Manajemen Inventori" },
-              { icon: "fa-chart-line", label: "Laporan & Analitik" },
-              { icon: "fa-users", label: "Manajemen Pelanggan" },
-            ].map((f) => (
-              <div key={f.label} className='login-feature-item'>
-                <span className='login-feature-icon'>
-                  <i className={`fa-solid ${f.icon}`} />
-                </span>
-                <span>{f.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className='login-left-footer'>
-          &copy; {new Date().getFullYear()} TokoKu. All rights reserved.
-        </div>
-      </div>
-
-      {/* Right panel — form */}
-      <div className='login-right'>
-        <div className='login-card'>
-          {/* Mobile logo */}
-          <div className='login-mobile-brand'>
-            <span className='login-mobile-icon'>
-              <i className='fa-solid fa-store' />
-            </span>
-            <span className='login-mobile-name'>TokoKu</span>
-          </div>
-
-          <div className='login-card-header'>
-            <h2 className='login-title'>Selamat Datang</h2>
-            <p className='login-subtitle'>Masuk ke akun toko kamu</p>
-          </div>
-
-          {error && (
-            <div className='login-error'>
-              <i className='fa-solid fa-circle-exclamation' />
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className='login-form'>
-            <Input
-              id='username'
-              label='Username'
-              placeholder='Masukkan username...'
-              leftIcon={<i className='fa-solid fa-user' />}
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete='username'
-              autoFocus
-              size='lg'
-            />
-            <Input
-              id='password'
-              label='Password'
-              type='password'
-              placeholder='Masukkan password...'
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete='current-password'
-              size='lg'
-            />
-
-            <div className='login-meta'></div>
-
-            <Button
-              type='submit'
-              variant='primary'
-              size='lg'
-              block
-              loading={loading}
-              leftIcon={
-                !loading && <i className='fa-solid fa-right-to-bracket' />
-              }
-            >
-              {loading ? "Memverifikasi..." : "Masuk"}
-            </Button>
-          </form>
-        </div>
-      </div>
-    </div>
+    <main className='min-h-screen bg-[#FDF8F5] text-[#3D2B1F]'>
+      <LandingNav site={site} />
+      <HeroSection hero={config.hero} />
+      <StylesSection styles={config.styles} />
+      <FabricsSection fabrics={config.fabrics} />
+      <AboutSection about={config.about} />
+      <ContactSection contact={config.contact} siteName={config.site.name} />
+      <LandingFooter site={site} />
+    </main>
   );
 }

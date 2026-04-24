@@ -16,27 +16,28 @@ import EmptyState from "@/components/ui/data/EmptyState";
 import Pagination from "@/components/ui/navigation/Pagination";
 import Breadcrumb from "@/components/ui/navigation/Breadcrumb";
 import Tooltip from "@/components/ui/data/Tooltip";
-import { OrderDetailModal, OrderCard, OrderTableRow } from "../_components";
+import { OrderDetailModal, OrderCard } from "../_components";
+import ProductionCostModal from "../_components/ProductionCostModal";
 import {
-  DUMMY_ORDERS,
   ORDER_STATUSES,
   PAYMENT_STATUS,
   PAYMENT_METHODS,
   formatRupiah,
   formatDateTime,
 } from "../_data";
+import { cancelOrder, saveProductionCosts } from "@/app/actions/orders";
 
 const PAGE_SIZE = 8;
 
-export default function PendingClient({ user }) {
+export default function PendingClient({ user, initialOrders }) {
   const toast = useToast();
   const router = useRouter();
 
-  const [orders, setOrders] = useState(DUMMY_ORDERS);
+  const [orders, setOrders] = useState(initialOrders);
   const [view, setView] = useState("list");
   const [search, setSearch] = useState("");
   const [filterPay, setFilterPay] = useState("");
-  const [sortBy, setSortBy] = useState("oldest"); // oldest first = most urgent
+  const [sortBy, setSortBy] = useState("oldest");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(new Set());
 
@@ -45,6 +46,9 @@ export default function PendingClient({ user }) {
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelling, setCancelling] = useState(false);
   const [bulkConfirming, setBulkConfirming] = useState(false);
+
+  const [productionOrder, setProductionOrder] = useState(null);
+  const [productionOpen, setProductionOpen] = useState(false);
 
   // only pending orders
   const pending = useMemo(
@@ -78,9 +82,10 @@ export default function PendingClient({ user }) {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // ── selection ─────────────────────────────────────────────────
+  // ── selection ──────────────────────────────────────────────────
   const allPageSelected =
     paginated.length > 0 && paginated.every((o) => selected.has(o.id));
+
   const toggleSelectAll = () => {
     if (allPageSelected) {
       setSelected((prev) => {
@@ -96,6 +101,7 @@ export default function PendingClient({ user }) {
       });
     }
   };
+
   const toggleOne = (id) => {
     setSelected((prev) => {
       const s = new Set(prev);
@@ -104,43 +110,48 @@ export default function PendingClient({ user }) {
     });
   };
 
-  // ── handlers ──────────────────────────────────────────────────
+  // ── handlers ───────────────────────────────────────────────────
   const handleView = (order) => {
     setDetailOrder(order);
     setDetailOpen(true);
   };
 
   const handleConfirm = (order) => {
+    setProductionOrder(order);
+    setProductionOpen(true);
+    setDetailOpen(false);
+  };
+
+  const handleProductionConfirmed = ({ orderId, grandProduction }) => {
     setOrders((prev) =>
-      prev.map((o) => (o.id === order.id ? { ...o, status: "confirmed" } : o)),
+      prev.map((o) =>
+        o.id === orderId
+          ? { ...o, status: "confirmed", productionCost: grandProduction }
+          : o,
+      ),
     );
     setSelected((prev) => {
       const s = new Set(prev);
-      s.delete(order.id);
+      s.delete(orderId);
       return s;
     });
     toast.add({
       variant: "success",
       title: "Dikonfirmasi",
-      message: `${order.code} berhasil dikonfirmasi.`,
+      message: "Pesanan dikonfirmasi & biaya produksi tersimpan.",
     });
   };
 
   const handleMarkDone = (order) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === order.id ? { ...o, status: "done" } : o)),
-    );
-    toast.add({
-      variant: "success",
-      title: "Selesai",
-      message: `${order.code} ditandai selesai.`,
-    });
+    // on pending page, mark done just navigates back or could open payment modal
+    // keeping it simple — navigate to main orders page
+    router.push("/dashboard/orders");
   };
 
   const handleBulkConfirm = async () => {
     if (selected.size === 0) return;
     setBulkConfirming(true);
-    await new Promise((r) => setTimeout(r, 800));
+    // bulk confirm: set all selected to confirmed (no production cost modal for bulk)
     const ids = new Set(selected);
     setOrders((prev) =>
       prev.map((o) => (ids.has(o.id) ? { ...o, status: "confirmed" } : o)),
@@ -157,36 +168,40 @@ export default function PendingClient({ user }) {
   const handleCancelConfirm = async () => {
     if (!cancelTarget) return;
     setCancelling(true);
-    await new Promise((r) => setTimeout(r, 600));
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === cancelTarget.id ? { ...o, status: "cancelled" } : o,
-      ),
-    );
-    setSelected((prev) => {
-      const s = new Set(prev);
-      s.delete(cancelTarget.id);
-      return s;
-    });
-    toast.add({
-      variant: "danger",
-      message: `${cancelTarget.code} dibatalkan.`,
-    });
+    try {
+      await cancelOrder(cancelTarget.id);
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === cancelTarget.id ? { ...o, status: "cancelled" } : o,
+        ),
+      );
+      setSelected((prev) => {
+        const s = new Set(prev);
+        s.delete(cancelTarget.id);
+        return s;
+      });
+      toast.add({
+        variant: "danger",
+        message: `${cancelTarget.code} dibatalkan.`,
+      });
+    } catch {
+      toast.add({ variant: "danger", message: "Gagal membatalkan pesanan." });
+    }
     setCancelTarget(null);
     setCancelling(false);
   };
 
-  // ── stats ─────────────────────────────────────────────────────
+  // ── stats ──────────────────────────────────────────────────────
   const unpaidCount = pending.filter(
     (o) => o.paymentStatus === "unpaid",
   ).length;
-  const partialCount = pending.filter(
-    (o) => o.paymentStatus === "partial",
+  const depositCount = pending.filter(
+    (o) => o.paymentStatus === "deposit",
   ).length;
   const totalValue = pending.reduce((s, o) => s + o.finalTotal, 0);
 
   return (
-    <DashboardLayout activeKey='orders'>
+    <DashboardLayout activeKey='orders' user={user}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {/* header */}
         <div>
@@ -278,8 +293,8 @@ export default function PendingClient({ user }) {
             color='danger'
           />
           <StatCard
-            label='DP / Partial'
-            value={partialCount}
+            label='DP / Deposit'
+            value={depositCount}
             icon={<i className='fa-solid fa-hand-holding-dollar' />}
             color='primary'
           />
@@ -333,7 +348,7 @@ export default function PendingClient({ user }) {
               className='input-base input-default input-sm select-base'
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              style={{ width: 160, paddingRight: 32 }}
+              style={{ width: 180, paddingRight: 32 }}
             >
               <option value='oldest'>Paling Lama (Urgen)</option>
               <option value='newest'>Terbaru</option>
@@ -463,7 +478,6 @@ export default function PendingClient({ user }) {
           >
             {paginated.map((o) => (
               <div key={o.id} style={{ position: "relative" }}>
-                {/* checkbox */}
                 <div
                   onClick={(e) => {
                     e.stopPropagation();
@@ -584,7 +598,10 @@ export default function PendingClient({ user }) {
                 </thead>
                 <tbody>
                   {paginated.map((o) => {
-                    const payCfg = PAYMENT_STATUS[o.paymentStatus];
+                    const payCfg = PAYMENT_STATUS[o.paymentStatus] ?? {
+                      variant: "secondary",
+                      label: o.paymentStatus,
+                    };
                     const payLabel =
                       PAYMENT_METHODS.find((m) => m.value === o.paymentMethod)
                         ?.label ?? o.paymentMethod;
@@ -806,6 +823,16 @@ export default function PendingClient({ user }) {
         onConfirm={handleConfirm}
         onMarkDone={handleMarkDone}
         onCancel={setCancelTarget}
+      />
+
+      <ProductionCostModal
+        open={productionOpen}
+        onClose={() => {
+          setProductionOpen(false);
+          setProductionOrder(null);
+        }}
+        order={productionOrder}
+        onConfirmed={handleProductionConfirmed}
       />
 
       <ConfirmDialog
