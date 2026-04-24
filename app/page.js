@@ -1,6 +1,7 @@
 // app/login/page.jsx
 "use client";
 import { useState } from "react";
+import { loginAction } from "@/app/actions/auth";
 import Input from "@/components/ui/form/Input";
 import Button from "@/components/ui/button/Button";
 
@@ -18,13 +19,17 @@ export default function LoginPage() {
     }
     setError("");
     setLoading(true);
-    try {
-      // ganti dengan server action / API call kamu
-      await new Promise((r) => setTimeout(r, 1500));
-      // contoh: router.push('/dashboard')
-    } catch {
-      setError("Username atau password salah");
-    } finally {
+
+    const formData = new FormData();
+    formData.append("username", username);
+    formData.append("password", password);
+
+    const result = await loginAction(formData);
+
+    // if loginAction redirects, code below never runs
+    // if it returns an error, show it
+    if (result?.error) {
+      setError(result.error);
       setLoading(false);
     }
   };
