@@ -5,26 +5,34 @@ import Button from "@/components/ui/button/Button";
 import Input from "@/components/ui/form/Input";
 import Select from "@/components/ui/form/Select";
 import Textarea from "@/components/ui/form/Textarea";
+import CreatableSelect from "@/components/ui/form/CreatableSelect";
 import { useToast } from "@/components/ui/feedback/ToastProvider";
 import {
   searchCustomers,
   createOrder,
   getOrderFormData,
+  searchStyles,
+  createStyle,
+  searchFabrics,
+  createFabric,
+  searchSizes,
+  createSize,
 } from "@/app/actions/orders";
 import { createCustomer } from "@/app/actions/customers";
+import ConfirmDialog from "@/components/ui/feedback/ConfirmDialog";
 
 const formatRupiah = (n) => "Rp " + Number(n || 0).toLocaleString("id-ID");
 
 const PAYMENT_METHOD_OPTIONS = [
-  { value: "cash", label: "Tunai" },
   { value: "transfer", label: "Transfer Bank" },
+  { value: "cash", label: "Tunai" },
   { value: "qris", label: "QRIS" },
   { value: "cod", label: "COD" },
 ];
 const PAYMENT_STATUS_OPTIONS = [
-  { value: "paid", label: "Lunas" },
   { value: "unpaid", label: "Belum Dibayar" },
   { value: "partial", label: "Bayar Sebagian" },
+  { value: "paid", label: "Lunas" },
 ];
 const EMPTY_CUSTOMER_FORM = {
   name: "",
@@ -148,11 +156,16 @@ function Step1Customer({ selectedCustomer, onSelect, onNext, onClose }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const debounceRef = useRef(null);
   const toast = useToast();
+  const [selected, setSelected] = useState(false);
 
   useEffect(() => {
     if (!query.trim() || query.length < 2) {
       setResults([]);
       setDropdownOpen(false);
+      return;
+    }
+    if (selected) {
+      setSelected(false);
       return;
     }
     clearTimeout(debounceRef.current);
@@ -210,7 +223,6 @@ function Step1Customer({ selectedCustomer, onSelect, onNext, onClose }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {!showNew ? (
         <>
-          {/* search */}
           <div style={{ position: "relative" }}>
             <Input
               label='Cari Pelanggan'
@@ -289,6 +301,7 @@ function Step1Customer({ selectedCustomer, onSelect, onNext, onClose }) {
                       key={c.id}
                       onClick={() => {
                         onSelect(c);
+                        setSelected(true);
                         setQuery(c.name);
                         setDropdownOpen(false);
                       }}
@@ -331,7 +344,6 @@ function Step1Customer({ selectedCustomer, onSelect, onNext, onClose }) {
             )}
           </div>
 
-          {/* selected customer card */}
           {selectedCustomer && (
             <div
               style={{
@@ -448,7 +460,6 @@ function Step1Customer({ selectedCustomer, onSelect, onNext, onClose }) {
           </div>
         </>
       ) : (
-        /* new customer form */
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div
             style={{
@@ -483,7 +494,11 @@ function Step1Customer({ selectedCustomer, onSelect, onNext, onClose }) {
             </Button>
           </div>
           <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+            }}
           >
             <Input
               label='Nama Lengkap'
@@ -543,9 +558,6 @@ function Step1Customer({ selectedCustomer, onSelect, onNext, onClose }) {
 
 // ─── ACCESSORY ROW ────────────────────────────────────────────────
 function AccessoryRow({ acc, accessories, onChange, onRemove }) {
-  const selected = accessories.find(
-    (a) => String(a.id) === String(acc.accessory_id),
-  );
   return (
     <div
       style={{
@@ -610,13 +622,50 @@ function AccessoryRow({ acc, accessories, onChange, onRemove }) {
 }
 
 // ─── ITEM FORM ────────────────────────────────────────────────────
-function ItemForm({ formData, onAdd, onCancel }) {
+function ItemForm({ formData, onAdd, onCancel, toast, onFormDataUpdate }) {
   const [form, setForm] = useState(EMPTY_ITEM);
   const [errors, setErrors] = useState({});
 
   const setF = (k, v) => {
     setForm((p) => ({ ...p, [k]: v }));
     setErrors((p) => ({ ...p, [k]: "" }));
+  };
+
+  // ── CreatableSelect handlers with toast on error ───────────────
+  const handleCreateStyle = async (name) => {
+    try {
+      const newOpt = await createStyle(name);
+      // ← tambahkan ke formData parent supaya semua ItemForm berikutnya ikut dapat
+      onFormDataUpdate("styles", { id: newOpt.value, name: newOpt.label });
+      return newOpt;
+    } catch {
+      toast.add({ variant: "danger", message: "Gagal menambah gaya baru." });
+      return null;
+    }
+  };
+
+  const handleCreateFabric = async (name) => {
+    try {
+      const newOpt = await createFabric(name);
+      console.log("createFabric result:", newOpt); // ← tambah ini
+      onFormDataUpdate("fabrics", { id: newOpt.value, name: newOpt.label });
+      return newOpt;
+    } catch (err) {
+      console.error("createFabric error:", err); // ← dan ini
+      toast.add({ variant: "danger", message: "Gagal menambah bahan baru." });
+      return null;
+    }
+  };
+
+  const handleCreateSize = async (name) => {
+    try {
+      const newOpt = await createSize(name);
+      onFormDataUpdate("sizes", { id: newOpt.value, name: newOpt.label });
+      return newOpt;
+    } catch {
+      toast.add({ variant: "danger", message: "Gagal menambah ukuran baru." });
+      return null;
+    }
   };
 
   const addAccessory = () =>
@@ -640,8 +689,6 @@ function ItemForm({ formData, onAdd, onCancel }) {
   const handleAdd = () => {
     const e = {};
     if (!form.qty || Number(form.qty) < 1) e.qty = "Qty minimal 1";
-    if (!form.invoice_price && form.invoice_price !== 0)
-      e.invoice_price = "Harga invoice wajib diisi";
     if (Object.keys(e).length) {
       setErrors(e);
       return;
@@ -668,16 +715,6 @@ function ItemForm({ formData, onAdd, onCancel }) {
     setErrors({});
   };
 
-  const styleName = formData.styles.find(
-    (s) => String(s.id) === String(form.style_id),
-  )?.name;
-  const fabricName = formData.fabrics.find(
-    (f) => String(f.id) === String(form.fabric_id),
-  )?.name;
-  const sizeName = formData.sizes.find(
-    (s) => String(s.id) === String(form.size_id),
-  )?.name;
-
   return (
     <div
       style={{
@@ -691,51 +728,65 @@ function ItemForm({ formData, onAdd, onCancel }) {
       }}
     >
       <div
-        style={{ fontSize: 13, fontWeight: 700, color: "var(--color-primary)" }}
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: "var(--color-primary)",
+        }}
       >
         <i className='fa-solid fa-plus-circle' style={{ marginRight: 8 }} />
         Tambah Item
       </div>
 
-      {/* style / fabric / size */}
+      {/* ── Gaya / Bahan / Ukuran — pakai CreatableSelect ── */}
       <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr",
+          gap: 10,
+        }}
       >
-        <Select
+        <CreatableSelect
           label='Gaya'
           value={form.style_id}
-          onChange={(e) => setF("style_id", e.target.value)}
-          options={[
-            { value: "", label: "Pilih gaya..." },
-            ...formData.styles.map((s) => ({
-              value: String(s.id),
-              label: s.name,
-            })),
-          ]}
+          onChange={(opt) => setF("style_id", opt?.value ?? "")}
+          options={formData.styles.map((s) => ({
+            value: String(s.id),
+            label: s.name,
+          }))}
+          onSearch={searchStyles}
+          onCreate={handleCreateStyle}
+          placeholder='Pilih atau buat...'
+          createLabel='Buat gaya'
+          emptyText='Tidak ada gaya'
         />
-        <Select
+        <CreatableSelect
           label='Bahan'
           value={form.fabric_id}
-          onChange={(e) => setF("fabric_id", e.target.value)}
-          options={[
-            { value: "", label: "Pilih bahan..." },
-            ...formData.fabrics.map((f) => ({
-              value: String(f.id),
-              label: f.name,
-            })),
-          ]}
+          onChange={(opt) => setF("fabric_id", opt?.value ?? "")}
+          options={formData.fabrics.map((f) => ({
+            value: String(f.id),
+            label: f.name,
+          }))}
+          onSearch={searchFabrics}
+          onCreate={handleCreateFabric}
+          placeholder='Pilih atau buat...'
+          createLabel='Buat bahan'
+          emptyText='Tidak ada bahan'
         />
-        <Select
+        <CreatableSelect
           label='Ukuran'
           value={form.size_id}
-          onChange={(e) => setF("size_id", e.target.value)}
-          options={[
-            { value: "", label: "Pilih ukuran..." },
-            ...formData.sizes.map((s) => ({
-              value: String(s.id),
-              label: `${s.name}${s.label ? ` (${s.label})` : ""}`,
-            })),
-          ]}
+          onChange={(opt) => setF("size_id", opt?.value ?? "")}
+          options={formData.sizes.map((s) => ({
+            value: String(s.id),
+            label: `${s.name}${s.label ? ` (${s.label})` : ""}`,
+          }))}
+          onSearch={searchSizes}
+          onCreate={handleCreateSize}
+          placeholder='Pilih atau buat...'
+          createLabel='Buat ukuran'
+          emptyText='Tidak ada ukuran'
         />
       </div>
 
@@ -773,12 +824,11 @@ function ItemForm({ formData, onAdd, onCancel }) {
         value={form.description}
         onChange={(e) => setF("description", e.target.value)}
         rows={2}
+        style={{ resize: "none" }}
       />
 
       {/* qty + pricing */}
-      <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}
-      >
+      <div>
         <Input
           label='Qty'
           type='number'
@@ -787,22 +837,6 @@ function ItemForm({ formData, onAdd, onCancel }) {
           value={form.qty}
           onChange={(e) => setF("qty", e.target.value)}
           error={errors.qty}
-        />
-        <Input
-          label='Biaya Produksi (Rp)'
-          type='number'
-          placeholder='0'
-          value={form.production_cost}
-          onChange={(e) => setF("production_cost", e.target.value)}
-        />
-        <Input
-          label='Harga Invoice (Rp)'
-          type='number'
-          required
-          placeholder='0'
-          value={form.invoice_price}
-          onChange={(e) => setF("invoice_price", e.target.value)}
-          error={errors.invoice_price}
         />
       </div>
 
@@ -926,8 +960,16 @@ function ItemForm({ formData, onAdd, onCancel }) {
 }
 
 // ─── STEP 2: ORDER ITEMS ──────────────────────────────────────────
-function Step2Items({ items, onItemsChange, formData, onNext, onBack }) {
+function Step2Items({
+  items,
+  onItemsChange,
+  formData,
+  onFormDataUpdate,
+  onNext,
+  onBack,
+}) {
   const [showForm, setShowForm] = useState(items.length === 0);
+  const toast = useToast();
 
   const handleAdd = (item) => {
     onItemsChange([...items, item]);
@@ -1084,7 +1126,10 @@ function Step2Items({ items, onItemsChange, formData, onNext, onBack }) {
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
                   <div
-                    style={{ fontSize: 12, color: "var(--color-text-muted)" }}
+                    style={{
+                      fontSize: 12,
+                      color: "var(--color-text-muted)",
+                    }}
                   >
                     Qty: {item.qty}
                   </div>
@@ -1098,7 +1143,10 @@ function Step2Items({ items, onItemsChange, formData, onNext, onBack }) {
                     {formatRupiah(item.invoice_price * item.qty)}
                   </div>
                   <div
-                    style={{ fontSize: 11, color: "var(--color-text-muted)" }}
+                    style={{
+                      fontSize: 11,
+                      color: "var(--color-text-muted)",
+                    }}
                   >
                     Produksi: {formatRupiah(item.production_cost * item.qty)}
                   </div>
@@ -1158,6 +1206,8 @@ function Step2Items({ items, onItemsChange, formData, onNext, onBack }) {
           onCancel={() => {
             if (items.length > 0) setShowForm(false);
           }}
+          toast={toast}
+          onFormDataUpdate={onFormDataUpdate}
         />
       ) : (
         <Button
@@ -1219,8 +1269,8 @@ function Step2Items({ items, onItemsChange, formData, onNext, onBack }) {
 // ─── STEP 3: SUMMARY ──────────────────────────────────────────────
 function Step3Summary({ customer, items, formData, onBack, onSave, saving }) {
   const [discount, setDiscount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [paymentStatus, setPaymentStatus] = useState("paid");
+  const [paymentMethod, setPaymentMethod] = useState("transfer");
+  const [paymentStatus, setPaymentStatus] = useState("unpaid");
   const [notes, setNotes] = useState("");
   const [cashier, setCashier] = useState("");
 
@@ -1328,14 +1378,20 @@ function Step3Summary({ customer, items, formData, onBack, onSave, saving }) {
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div>
                 {item.colorway && (
                   <div
-                    style={{ fontSize: 11, color: "var(--color-text-muted)" }}
+                    style={{
+                      fontSize: 11,
+                      color: "var(--color-text-muted)",
+                    }}
                   >
                     {item.colorway}
                   </div>
                 )}
                 {item.accessories?.length > 0 && (
                   <div
-                    style={{ fontSize: 11, color: "var(--color-text-muted)" }}
+                    style={{
+                      fontSize: 11,
+                      color: "var(--color-text-muted)",
+                    }}
                   >
                     {item.accessories.length} aksesori
                   </div>
@@ -1398,6 +1454,7 @@ function Step3Summary({ customer, items, formData, onBack, onSave, saving }) {
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         rows={2}
+        style={{ resize: "none" }}
       />
 
       {/* totals */}
@@ -1537,8 +1594,15 @@ export default function NewOrderModal({ open, onClose, onSave }) {
   const [loadingFormData, setLoadingFormData] = useState(false);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
 
-  // load dropdown data once on open
+  const handleFormDataUpdate = (key, newItem) => {
+    setFormData((prev) => ({
+      ...prev,
+      [key]: [...prev[key], newItem],
+    }));
+  };
+
   useEffect(() => {
     if (!open) return;
     setLoadingFormData(true);
@@ -1550,7 +1614,6 @@ export default function NewOrderModal({ open, onClose, onSave }) {
       .finally(() => setLoadingFormData(false));
   }, [open]);
 
-  // reset on close
   useEffect(() => {
     if (!open) {
       setTimeout(() => {
@@ -1563,13 +1626,14 @@ export default function NewOrderModal({ open, onClose, onSave }) {
 
   const handleClose = () => {
     if (items.length > 0) {
-      if (
-        !window.confirm(
-          "Data item pesanan yang sudah diisi akan hilang. Yakin tutup?",
-        )
-      )
-        return;
+      setCloseConfirmOpen(true); // buka dialog, jangan langsung close
+      return;
     }
+    onClose();
+  };
+
+  const handleCloseConfirmed = () => {
+    setCloseConfirmOpen(false);
     onClose();
   };
 
@@ -1611,61 +1675,74 @@ export default function NewOrderModal({ open, onClose, onSave }) {
   ];
 
   return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      title={STEP_TITLES[step - 1]}
-      size='lg'
-      closeable={!saving}
-      footer={null}
-    >
-      <StepIndicator step={step} />
+    <>
+      <Modal
+        open={open}
+        onClose={handleClose}
+        title={STEP_TITLES[step - 1]}
+        size='lg'
+        closeable={!saving}
+        footer={null}
+      >
+        <StepIndicator step={step} />
 
-      {loadingFormData && step === 2 ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "40px 0",
-            color: "var(--color-text-muted)",
-          }}
-        >
-          <i
-            className='fa-solid fa-spinner fa-spin'
-            style={{ fontSize: 24, marginBottom: 10, display: "block" }}
-          />
-          Memuat data...
-        </div>
-      ) : (
-        <>
-          {step === 1 && (
-            <Step1Customer
-              selectedCustomer={selectedCustomer}
-              onSelect={setSelectedCustomer}
-              onNext={() => setStep(2)}
-              onClose={handleClose}
+        {loadingFormData && step === 2 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "40px 0",
+              color: "var(--color-text-muted)",
+            }}
+          >
+            <i
+              className='fa-solid fa-spinner fa-spin'
+              style={{ fontSize: 24, marginBottom: 10, display: "block" }}
             />
-          )}
-          {step === 2 && (
-            <Step2Items
-              items={items}
-              onItemsChange={setItems}
-              formData={formData}
-              onNext={() => setStep(3)}
-              onBack={() => setStep(1)}
-            />
-          )}
-          {step === 3 && (
-            <Step3Summary
-              customer={selectedCustomer}
-              items={items}
-              formData={formData}
-              onBack={() => setStep(2)}
-              onSave={handleSave}
-              saving={saving}
-            />
-          )}
-        </>
-      )}
-    </Modal>
+            Memuat data...
+          </div>
+        ) : (
+          <>
+            {step === 1 && (
+              <Step1Customer
+                selectedCustomer={selectedCustomer}
+                onSelect={setSelectedCustomer}
+                onNext={() => setStep(2)}
+                onClose={handleClose}
+              />
+            )}
+            {step === 2 && (
+              <Step2Items
+                items={items}
+                onItemsChange={setItems}
+                formData={formData}
+                onFormDataUpdate={handleFormDataUpdate}
+                onNext={() => setStep(3)}
+                onBack={() => setStep(1)}
+              />
+            )}
+            {step === 3 && (
+              <Step3Summary
+                customer={selectedCustomer}
+                items={items}
+                formData={formData}
+                onBack={() => setStep(2)}
+                onSave={handleSave}
+                saving={saving}
+              />
+            )}
+          </>
+        )}
+      </Modal>
+
+      <ConfirmDialog
+        open={closeConfirmOpen}
+        onClose={() => setCloseConfirmOpen(false)}
+        onConfirm={handleCloseConfirmed}
+        title='Tutup Form Pesanan?'
+        message='Data item pesanan yang sudah diisi akan hilang. Yakin ingin menutup?'
+        variant='warning'
+        confirmText='Ya, Tutup'
+      />
+    </>
   );
 }

@@ -355,3 +355,66 @@ export async function markOrderDone({ orderId, amountPaid }) {
 
   revalidatePath("/dashboard/orders");
 }
+
+// ── Styles ────────────────────────────────────────────────────────
+export async function searchStyles(query) {
+  const result = await db.execute({
+    sql: `SELECT id, name FROM styles WHERE name LIKE ? ORDER BY name ASC LIMIT 20`,
+    args: [`%${query}%`],
+  });
+  return serialize(result.rows).map((r) => ({
+    value: String(r.id),
+    label: r.name,
+  }));
+}
+
+export async function createStyle(name) {
+  const result = await db.execute({
+    sql: `INSERT INTO styles (name, status) VALUES (?, 1)`,
+    args: [name],
+  });
+  const id = Number(result.lastInsertRowid);
+  return { value: String(id), label: name };
+}
+
+// ── Fabrics ───────────────────────────────────────────────────────
+export async function searchFabrics(query) {
+  const result = await db.execute({
+    sql: `SELECT id, name FROM fabrics WHERE name LIKE ? ORDER BY name ASC LIMIT 20`,
+    args: [`%${query}%`],
+  });
+  return serialize(result.rows).map((r) => ({
+    value: String(r.id),
+    label: r.name,
+  }));
+}
+
+export async function createFabric(name) {
+  const result = await db.execute({
+    sql: `INSERT INTO fabrics (name, status) VALUES (?, 1)`,
+    args: [name],
+  });
+  const id = Number(result.lastInsertRowid);
+  return { value: String(id), label: name };
+}
+
+// ── Sizes ─────────────────────────────────────────────────────────
+export async function searchSizes(query) {
+  const result = await db.execute({
+    sql: `SELECT id, name, label FROM sizes WHERE name LIKE ? ORDER BY sort_order ASC LIMIT 20`,
+    args: [`%${query}%`],
+  });
+  return serialize(result.rows).map((r) => ({
+    value: String(r.id),
+    label: `${r.name}${r.label ? ` (${r.label})` : ""}`,
+  }));
+}
+
+export async function createSize(name) {
+  const result = await db.execute({
+    sql: `INSERT INTO sizes (name, status, sort_order) VALUES (?, 1, 999)`,
+    args: [name],
+  });
+  const id = Number(result.lastInsertRowid);
+  return { value: String(id), label: name };
+}
