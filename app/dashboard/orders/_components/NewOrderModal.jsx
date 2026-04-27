@@ -58,9 +58,115 @@ const EMPTY_ITEM = {
 };
 const EMPTY_ACCESSORY = { accessory_id: "", qty: 1, cost_price: "", notes: "" };
 
+// ─── Production cost helpers (mirrored from ProductionCostModal) ──
+const SEWING_FIELDS = [
+  { key: "sewing", label: "Ongkos Jahit", icon: "fa-scissors" },
+  { key: "buttonhole", label: "Lubang Kancing", icon: "fa-circle-dot" },
+  { key: "swir", label: "Swir", icon: "fa-arrow-right-arrow-left" },
+  { key: "assembly", label: "Ongkos Pasang", icon: "fa-screwdriver-wrench" },
+  { key: "embroidery", label: "Bordir / Embroidery", icon: "fa-star" },
+  { key: "platpack", label: "Plat Pack - Stiker", icon: "fa-box" },
+  {
+    key: "overhead",
+    label: "Overhead (75% Jahit)",
+    icon: "fa-percent",
+    computed: true,
+  },
+];
+const FABRIC_FIELDS = [
+  {
+    key: "fabric_price",
+    label: "Harga Kain/meter (Rp)",
+    icon: "fa-tag",
+    type: "number",
+    placeholder: "0",
+  },
+  {
+    key: "dying",
+    label: "Biaya Dying/meter (Rp)",
+    icon: "fa-fill-drip",
+    type: "number",
+    placeholder: "0",
+  },
+  {
+    key: "pre_wash",
+    label: "Pre-wash (Rp)",
+    icon: "fa-droplet",
+    type: "number",
+    placeholder: "0",
+  },
+  {
+    key: "consumption_meter",
+    label: "Konsumsi (meter/pcs)",
+    icon: "fa-ruler",
+    type: "number",
+    placeholder: "0.00",
+    step: "0.01",
+  },
+];
+const EMPTY_COSTS = {
+  sewing: "",
+  buttonhole: "",
+  swir: "",
+  assembly: "",
+  embroidery: "",
+  platpack: "",
+  fabric_price: "",
+  dying: "",
+  pre_wash: "",
+  consumption_meter: "",
+};
+
+function computeOverhead(costs) {
+  return Math.round((Number(costs.sewing) || 0) * 0.75);
+}
+function computeTotalSewing(costs) {
+  const overhead = computeOverhead(costs);
+  return SEWING_FIELDS.reduce((s, f) => {
+    if (f.key === "overhead") return s + overhead;
+    return s + (Number(costs[f.key]) || 0);
+  }, 0);
+}
+function computeFabricCost(costs) {
+  const fabricPrice = Number(costs.fabric_price) || 0;
+  const dying = Number(costs.dying) || 0;
+  const prewash = Number(costs.pre_wash) || 0;
+  const meter = Number(costs.consumption_meter) || 0;
+  const shrink5 = Math.round(fabricPrice * 0.05);
+  const finalAdding = fabricPrice + shrink5 + dying + prewash;
+  return Math.round(finalAdding * meter * 1.1);
+}
+function computeAccessoriesTotal(accessories) {
+  return (accessories ?? []).reduce(
+    (s, a) => s + (Number(a.qty) || 0) * (Number(a.cost_price) || 0),
+    0,
+  );
+}
+
+const makeCostsMap = (items) =>
+  Object.fromEntries(
+    (items ?? []).map((item) => [item._id, { ...EMPTY_COSTS }]),
+  );
+
+const makeAccessoriesMap = (items) =>
+  Object.fromEntries(
+    (items ?? []).map((item) => [
+      item._id,
+      (item.accessories ?? []).map((a, i) => ({
+        _idx: i,
+        accessory_id: a.accessory_id,
+        name: "",
+        unit: "",
+        qty: a.qty ?? 1,
+        cost_price: a.cost_price ?? 0,
+        notes: a.notes ?? "",
+      })),
+    ]),
+  );
+
 // ─── STEP INDICATOR ───────────────────────────────────────────────
 function StepIndicator({ step }) {
-  const steps = ["Pelanggan", "Item Pesanan", "Ringkasan"];
+  const steps = ["Pelanggan", "Item Pesanan", "Biaya Produksi", "Ringkasan"];
   return (
     <div style={{ display: "flex", alignItems: "center", marginBottom: 24 }}>
       {steps.map((label, i) => {
@@ -73,7 +179,7 @@ function StepIndicator({ step }) {
             style={{
               display: "flex",
               alignItems: "center",
-              flex: i < 2 ? 1 : "none",
+              flex: i < 3 ? 1 : "none",
             }}
           >
             <div
@@ -124,7 +230,7 @@ function StepIndicator({ step }) {
                 {label}
               </span>
             </div>
-            {i < 2 && (
+            {i < 3 && (
               <div
                 style={{
                   flex: 1,
@@ -494,11 +600,7 @@ function Step1Customer({ selectedCustomer, onSelect, onNext, onClose }) {
             </Button>
           </div>
           <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 12,
-            }}
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
           >
             <Input
               label='Nama Lengkap'
@@ -625,17 +727,14 @@ function AccessoryRow({ acc, accessories, onChange, onRemove }) {
 function ItemForm({ formData, onAdd, onCancel, toast, onFormDataUpdate }) {
   const [form, setForm] = useState(EMPTY_ITEM);
   const [errors, setErrors] = useState({});
-
   const setF = (k, v) => {
     setForm((p) => ({ ...p, [k]: v }));
     setErrors((p) => ({ ...p, [k]: "" }));
   };
 
-  // ── CreatableSelect handlers with toast on error ───────────────
   const handleCreateStyle = async (name) => {
     try {
       const newOpt = await createStyle(name);
-      // ← tambahkan ke formData parent supaya semua ItemForm berikutnya ikut dapat
       onFormDataUpdate("styles", { id: newOpt.value, name: newOpt.label });
       return newOpt;
     } catch {
@@ -643,20 +742,16 @@ function ItemForm({ formData, onAdd, onCancel, toast, onFormDataUpdate }) {
       return null;
     }
   };
-
   const handleCreateFabric = async (name) => {
     try {
       const newOpt = await createFabric(name);
-      console.log("createFabric result:", newOpt); // ← tambah ini
       onFormDataUpdate("fabrics", { id: newOpt.value, name: newOpt.label });
       return newOpt;
-    } catch (err) {
-      console.error("createFabric error:", err); // ← dan ini
+    } catch {
       toast.add({ variant: "danger", message: "Gagal menambah bahan baru." });
       return null;
     }
   };
-
   const handleCreateSize = async (name) => {
     try {
       const newOpt = await createSize(name);
@@ -673,13 +768,11 @@ function ItemForm({ formData, onAdd, onCancel, toast, onFormDataUpdate }) {
       ...form.accessories,
       { ...EMPTY_ACCESSORY, _id: Date.now() },
     ]);
-
   const updateAccessory = (idx, data) =>
     setF(
       "accessories",
       form.accessories.map((a, i) => (i === idx ? data : a)),
     );
-
   const removeAccessory = (idx) =>
     setF(
       "accessories",
@@ -728,23 +821,13 @@ function ItemForm({ formData, onAdd, onCancel, toast, onFormDataUpdate }) {
       }}
     >
       <div
-        style={{
-          fontSize: 13,
-          fontWeight: 700,
-          color: "var(--color-primary)",
-        }}
+        style={{ fontSize: 13, fontWeight: 700, color: "var(--color-primary)" }}
       >
         <i className='fa-solid fa-plus-circle' style={{ marginRight: 8 }} />
         Tambah Item
       </div>
-
-      {/* ── Gaya / Bahan / Ukuran — pakai CreatableSelect ── */}
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
-          gap: 10,
-        }}
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}
       >
         <CreatableSelect
           label='Gaya'
@@ -789,8 +872,6 @@ function ItemForm({ formData, onAdd, onCancel, toast, onFormDataUpdate }) {
           emptyText='Tidak ada ukuran'
         />
       </div>
-
-      {/* detail fields */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <Input
           label='Size Marker'
@@ -817,7 +898,6 @@ function ItemForm({ formData, onAdd, onCancel, toast, onFormDataUpdate }) {
           onChange={(e) => setF("colour_fabric", e.target.value)}
         />
       </div>
-
       <Textarea
         label='Deskripsi / Keterangan'
         placeholder='Detail tambahan item...'
@@ -826,21 +906,15 @@ function ItemForm({ formData, onAdd, onCancel, toast, onFormDataUpdate }) {
         rows={2}
         style={{ resize: "none" }}
       />
-
-      {/* qty + pricing */}
-      <div>
-        <Input
-          label='Qty'
-          type='number'
-          required
-          placeholder='1'
-          value={form.qty}
-          onChange={(e) => setF("qty", e.target.value)}
-          error={errors.qty}
-        />
-      </div>
-
-      {/* accessories */}
+      <Input
+        label='Qty'
+        type='number'
+        required
+        placeholder='1'
+        value={form.qty}
+        onChange={(e) => setF("qty", e.target.value)}
+        error={errors.qty}
+      />
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <div
           style={{
@@ -912,19 +986,6 @@ function ItemForm({ formData, onAdd, onCancel, toast, onFormDataUpdate }) {
           </div>
         )}
       </div>
-
-      {/* subtotal preview */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          gap: 16,
-          fontSize: 13,
-          paddingTop: 8,
-          borderTop: "1px solid var(--color-border)",
-        }}
-      ></div>
-
       <div style={{ display: "flex", gap: 8 }}>
         <Button variant='secondary' size='sm' onClick={onCancel}>
           Batal
@@ -958,18 +1019,10 @@ function Step2Items({
     onItemsChange([...items, item]);
     setShowForm(false);
   };
-
   const handleRemove = (id) => onItemsChange(items.filter((i) => i._id !== id));
-
-  const totalInvoice = items.reduce((s, i) => s + i.invoice_price * i.qty, 0);
-  const totalProduction = items.reduce(
-    (s, i) => s + i.production_cost * i.qty,
-    0,
-  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* items list */}
       {items.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {items.map((item, idx) => {
@@ -1109,10 +1162,7 @@ function Step2Items({
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
                   <div
-                    style={{
-                      fontSize: 12,
-                      color: "var(--color-text-muted)",
-                    }}
+                    style={{ fontSize: 12, color: "var(--color-text-muted)" }}
                   >
                     Qty: {item.qty}
                   </div>
@@ -1138,7 +1188,6 @@ function Step2Items({
         </div>
       )}
 
-      {/* add item */}
       {showForm ? (
         <ItemForm
           formData={formData}
@@ -1171,12 +1220,7 @@ function Step2Items({
         >
           <i
             className='fa-solid fa-box-open'
-            style={{
-              fontSize: 28,
-              marginBottom: 10,
-              display: "block",
-              textAlign: "center",
-            }}
+            style={{ fontSize: 28, marginBottom: 10, display: "block" }}
           />
           Belum ada item
         </div>
@@ -1204,6 +1248,691 @@ function Step2Items({
           rightIcon={<i className='fa-solid fa-arrow-right' />}
           onClick={onNext}
         >
+          Lanjut ke Biaya Produksi
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── STEP 3: PRODUCTION COSTS ─────────────────────────────────────
+function AccordionItem({ title, children, open, onToggle }) {
+  return (
+    <div
+      style={{
+        border: "1px solid var(--color-border)",
+        borderRadius: "var(--radius-md)",
+        overflow: "hidden",
+        marginBottom: 8,
+      }}
+    >
+      <button
+        type='button'
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 14px",
+          background: "var(--color-bg-subtle)",
+          border: "none",
+          cursor: "pointer",
+          gap: 12,
+          borderBottom: open ? "1px solid var(--color-border)" : "none",
+        }}
+      >
+        <div style={{ flex: 1, textAlign: "left" }}>{title}</div>
+        <i
+          className='fa-solid fa-chevron-down'
+          style={{
+            fontSize: 12,
+            color: "var(--color-text-muted)",
+            transition: "transform .2s",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+          }}
+        />
+      </button>
+      {open && <div>{children}</div>}
+    </div>
+  );
+}
+
+function ItemAccordionTitle({ item, costs, accessories, formData }) {
+  const sewingTotal = computeTotalSewing(costs);
+  const accTotal = computeAccessoriesTotal(accessories);
+  const fabricCost = computeFabricCost(costs);
+  const totalPerUnit = sewingTotal + accTotal + fabricCost;
+  const totalProd = totalPerUnit * item.qty;
+  const hasData = sewingTotal > 0 || fabricCost > 0 || accTotal > 0;
+
+  const styleName = formData.styles.find(
+    (s) => String(s.id) === String(item.style_id),
+  )?.name;
+  const fabricName = formData.fabrics.find(
+    (f) => String(f.id) === String(item.fabric_id),
+  )?.name;
+  const sizeName = formData.sizes.find(
+    (s) => String(s.id) === String(item.size_id),
+  )?.name;
+  const itemLabel =
+    [styleName, fabricName, sizeName].filter(Boolean).join(" · ") ||
+    item.description ||
+    "Item";
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        flexWrap: "wrap",
+        width: "100%",
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: "var(--color-text-primary)",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {itemLabel}
+        </div>
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--color-text-muted)",
+            marginTop: 2,
+          }}
+        >
+          Qty: {item.qty}
+        </div>
+      </div>
+      {hasData ? (
+        <div
+          style={{ display: "flex", gap: 12, flexShrink: 0, flexWrap: "wrap" }}
+        >
+          <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+            Jahit:{" "}
+            <strong style={{ color: "var(--color-text-primary)" }}>
+              {formatRupiah(sewingTotal + accTotal)}
+            </strong>
+          </span>
+          <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+            Kain:{" "}
+            <strong style={{ color: "var(--color-text-primary)" }}>
+              {formatRupiah(fabricCost)}
+            </strong>
+          </span>
+          <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+            Total:{" "}
+            <strong style={{ color: "var(--color-warning)" }}>
+              {formatRupiah(totalProd)}
+            </strong>
+          </span>
+        </div>
+      ) : (
+        <span
+          style={{
+            fontSize: 11,
+            color: "var(--color-text-muted)",
+            fontStyle: "italic",
+          }}
+        >
+          Belum diisi
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ItemCostContent({
+  item,
+  costs = EMPTY_COSTS,
+  accessories = [],
+  onChange,
+  onAccessoryChange,
+}) {
+  const sewingTotal = computeTotalSewing(costs);
+  const accessoriesTotal = computeAccessoriesTotal(accessories);
+  const fabricCost = computeFabricCost(costs);
+  const jahitTotal = sewingTotal + accessoriesTotal;
+  const totalCostPerUnit = jahitTotal + fabricCost;
+  const totalProduction = totalCostPerUnit * item.qty;
+
+  const fabricPrice = Number(costs.fabric_price) || 0;
+  const dying = Number(costs.dying) || 0;
+  const prewash = Number(costs.pre_wash) || 0;
+  const meter = Number(costs.consumption_meter) || 0;
+  const shrink5 = Math.round(fabricPrice * 0.05);
+  const finalAdding = fabricPrice + shrink5 + dying + prewash;
+  const calcTotal = finalAdding * meter;
+  const orgFabric = calcTotal * 0.1;
+
+  return (
+    <div>
+      {/* Jahit & Finishing */}
+      <div
+        style={{
+          padding: "12px 14px 8px",
+          borderBottom: "1px solid var(--color-border)",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: ".05em",
+            color: "var(--color-text-muted)",
+            marginBottom: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <i
+            className='fa-solid fa-scissors'
+            style={{ color: "var(--color-primary)" }}
+          />
+          Jahit & Finishing
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: 10,
+          }}
+        >
+          {SEWING_FIELDS.map((f) => {
+            if (f.computed) {
+              const computedVal = computeOverhead(costs);
+              return (
+                <div
+                  key={f.key}
+                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                >
+                  <label
+                    style={{
+                      fontSize: 12,
+                      color: "var(--color-text-muted)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {f.label}
+                  </label>
+                  <div
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--color-border)",
+                      background: "var(--color-bg-subtle)",
+                      fontSize: 13,
+                      color: "var(--color-text-muted)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <i
+                      className={`fa-solid ${f.icon}`}
+                      style={{ fontSize: 11 }}
+                    />
+                    <span>{formatRupiah(computedVal)}</span>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        marginLeft: "auto",
+                        color: "var(--color-text-muted)",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      otomatis
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <Input
+                key={f.key}
+                label={f.label}
+                type='number'
+                placeholder='0'
+                value={costs[f.key] ?? ""}
+                onChange={(e) => onChange(f.key, e.target.value)}
+                leftIcon={
+                  <i
+                    className={`fa-solid ${f.icon}`}
+                    style={{ fontSize: 11 }}
+                  />
+                }
+                hint={
+                  costs[f.key]
+                    ? `Total: ${formatRupiah(Number(costs[f.key]) * item.qty)}`
+                    : undefined
+                }
+              />
+            );
+          })}
+        </div>
+
+        {/* Accessories cost entry */}
+        {accessories.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: "var(--color-text-muted)",
+                marginBottom: 8,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <i
+                className='fa-solid fa-paperclip'
+                style={{ color: "var(--color-primary)" }}
+              />
+              Aksesori
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 70px 110px",
+                gap: 8,
+                marginBottom: 4,
+                padding: "0 2px",
+              }}
+            >
+              {["Nama Aksesori", "Qty", "Harga/unit (Rp)"].map((h) => (
+                <div
+                  key={h}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "var(--color-text-muted)",
+                    textTransform: "uppercase",
+                    letterSpacing: ".04em",
+                  }}
+                >
+                  {h}
+                </div>
+              ))}
+            </div>
+            {accessories.map((acc, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 70px 110px",
+                  gap: 8,
+                  marginBottom: 6,
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: "var(--color-text-primary)",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {acc.name || `Aksesori ${idx + 1}`}
+                  </span>
+                  {acc.unit && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: "var(--color-text-muted)",
+                        background: "var(--color-bg-subtle)",
+                        padding: "1px 6px",
+                        borderRadius: 999,
+                      }}
+                    >
+                      {acc.unit}
+                    </span>
+                  )}
+                </div>
+                <Input
+                  label=''
+                  type='number'
+                  placeholder='1'
+                  value={acc.qty}
+                  onChange={(e) =>
+                    onAccessoryChange(idx, "qty", e.target.value)
+                  }
+                />
+                <Input
+                  label=''
+                  type='number'
+                  placeholder='0'
+                  value={acc.cost_price}
+                  onChange={(e) =>
+                    onAccessoryChange(idx, "cost_price", e.target.value)
+                  }
+                  hint={
+                    acc.qty && acc.cost_price
+                      ? formatRupiah(Number(acc.qty) * Number(acc.cost_price))
+                      : undefined
+                  }
+                />
+              </div>
+            ))}
+            <div
+              style={{
+                marginTop: 4,
+                padding: "6px 10px",
+                background: "var(--color-bg-subtle)",
+                borderRadius: "var(--radius-sm)",
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
+              <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
+                Subtotal Aksesori/pcs
+              </span>
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "var(--color-text-primary)",
+                }}
+              >
+                {formatRupiah(accessoriesTotal)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div
+          style={{
+            marginTop: 8,
+            padding: "6px 10px",
+            background: "var(--color-primary)",
+            borderRadius: "var(--radius-sm)",
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          <span style={{ fontSize: 12, color: "white" }}>
+            Total Jahit & Finishing/pcs
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "white" }}>
+            {formatRupiah(jahitTotal)}
+          </span>
+        </div>
+      </div>
+
+      {/* Biaya Kain */}
+      <div
+        style={{
+          padding: "12px 14px 8px",
+          borderBottom: "1px solid var(--color-border)",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: ".05em",
+            color: "var(--color-text-muted)",
+            marginBottom: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <i
+            className='fa-solid fa-shirt'
+            style={{ color: "var(--color-primary)" }}
+          />
+          Biaya Kain
+        </div>
+        <div
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+        >
+          {FABRIC_FIELDS.map((f) => (
+            <Input
+              key={f.key}
+              label={f.label}
+              type={f.type}
+              placeholder={f.placeholder}
+              step={f.step}
+              value={costs[f.key] ?? ""}
+              onChange={(e) => onChange(f.key, e.target.value)}
+              leftIcon={
+                <i className={`fa-solid ${f.icon}`} style={{ fontSize: 11 }} />
+              }
+            />
+          ))}
+        </div>
+        <div
+          style={{
+            marginTop: 10,
+            padding: "10px 12px",
+            background: "var(--color-bg-subtle)",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <div style={{ color: "var(--color-text-muted)" }}>
+              Shrink 5%: <strong>{formatRupiah(shrink5)}</strong>
+            </div>
+            <div style={{ color: "var(--color-text-muted)" }}>
+              Final Adding: {formatRupiah(fabricPrice)} +{" "}
+              {formatRupiah(shrink5)} + {formatRupiah(dying)} +{" "}
+              {formatRupiah(prewash)} ={" "}
+              <strong>{formatRupiah(finalAdding)}/m</strong>
+            </div>
+            <div style={{ color: "var(--color-text-muted)" }}>
+              Calc Total: {formatRupiah(finalAdding)} × {meter}m ={" "}
+              <strong>{formatRupiah(Math.round(calcTotal))}</strong>
+            </div>
+            <div style={{ color: "var(--color-text-muted)" }}>
+              Organized Fabric (10%):{" "}
+              <strong>{formatRupiah(Math.round(orgFabric))}</strong>
+            </div>
+            <div
+              style={{
+                borderTop: "1px solid var(--color-border)",
+                marginTop: 4,
+                paddingTop: 4,
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
+              <span style={{ color: "var(--color-text-muted)" }}>
+                Total Biaya Kain/pcs
+              </span>
+              <strong style={{ color: "var(--color-primary)" }}>
+                {formatRupiah(fabricCost)}
+              </strong>
+            </div>
+            <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+              Total kain ({item.qty} pcs):{" "}
+              <strong style={{ color: "var(--color-primary)" }}>
+                {formatRupiah(fabricCost * item.qty)}
+              </strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Grand summary */}
+      <div
+        style={{
+          padding: "10px 14px",
+          display: "flex",
+          gap: 16,
+          flexWrap: "wrap",
+          background: "var(--color-bg-primary)",
+        }}
+      >
+        <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
+          Jahit & Finishing:{" "}
+          <strong style={{ color: "var(--color-text-primary)" }}>
+            {formatRupiah(jahitTotal)}
+          </strong>
+        </span>
+        <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
+          Kain:{" "}
+          <strong style={{ color: "var(--color-text-primary)" }}>
+            {formatRupiah(fabricCost)}
+          </strong>
+        </span>
+        <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
+          Total/pcs:{" "}
+          <strong style={{ color: "var(--color-warning)" }}>
+            {formatRupiah(totalCostPerUnit)}
+          </strong>
+        </span>
+        <span
+          style={{
+            fontSize: 12,
+            color: "var(--color-text-muted)",
+            marginLeft: "auto",
+          }}
+        >
+          Total produksi:{" "}
+          <strong style={{ color: "var(--color-warning)" }}>
+            {formatRupiah(totalProduction)}
+          </strong>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Step3ProductionCosts({
+  items,
+  formData,
+  itemCosts,
+  itemAccessories,
+  onCostsChange,
+  onAccessoriesChange,
+  onNext,
+  onBack,
+}) {
+  const [openMap, setOpenMap] = useState({ 0: true });
+  const toggleItem = (idx) =>
+    setOpenMap((prev) => ({ ...prev, [idx]: !prev[idx] }));
+
+  const grandProduction = items.reduce((s, item) => {
+    const costs = itemCosts[item._id] ?? EMPTY_COSTS;
+    const accessories = itemAccessories[item._id] ?? [];
+    return (
+      s +
+      (computeTotalSewing(costs) +
+        computeAccessoriesTotal(accessories) +
+        computeFabricCost(costs)) *
+        item.qty
+    );
+  }, 0);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+      <p
+        style={{
+          fontSize: 13,
+          color: "var(--color-text-muted)",
+          margin: "0 0 16px",
+        }}
+      >
+        Masukkan biaya produksi per item per pcs. Boleh dilewati jika belum ada
+        datanya.
+      </p>
+
+      {items.map((item, idx) => {
+        const costs = itemCosts[item._id] ?? EMPTY_COSTS;
+        const accessories = itemAccessories[item._id] ?? [];
+        return (
+          <AccordionItem
+            key={item._id}
+            open={!!openMap[idx]}
+            onToggle={() => toggleItem(idx)}
+            title={
+              <ItemAccordionTitle
+                item={item}
+                costs={costs}
+                accessories={accessories}
+                formData={formData}
+              />
+            }
+          >
+            <ItemCostContent
+              item={item}
+              costs={costs}
+              accessories={accessories}
+              onChange={(field, value) => onCostsChange(item._id, field, value)}
+              onAccessoryChange={(accIdx, field, value) =>
+                onAccessoriesChange(item._id, accIdx, field, value)
+              }
+            />
+          </AccordionItem>
+        );
+      })}
+
+      {grandProduction > 0 && (
+        <div
+          style={{
+            margin: "8px 0",
+            padding: "10px 14px",
+            background: "var(--color-bg-subtle)",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--color-border)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
+            Total Biaya Produksi
+          </span>
+          <strong style={{ fontSize: 14, color: "var(--color-warning)" }}>
+            {formatRupiah(grandProduction)}
+          </strong>
+        </div>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 8,
+          paddingTop: 8,
+          borderTop: "1px solid var(--color-border)",
+          marginTop: 8,
+        }}
+      >
+        <Button
+          variant='secondary'
+          leftIcon={<i className='fa-solid fa-arrow-left' />}
+          onClick={onBack}
+        >
+          Kembali
+        </Button>
+        <Button
+          variant='primary'
+          rightIcon={<i className='fa-solid fa-arrow-right' />}
+          onClick={onNext}
+        >
           Lanjut ke Ringkasan
         </Button>
       </div>
@@ -1211,22 +1940,39 @@ function Step2Items({
   );
 }
 
-// ─── STEP 3: SUMMARY ──────────────────────────────────────────────
-function Step3Summary({ customer, items, formData, onBack, onSave, saving }) {
+// ─── STEP 4: SUMMARY ──────────────────────────────────────────────
+function Step4Summary({
+  customer,
+  items,
+  formData,
+  itemCosts,
+  itemAccessories,
+  onBack,
+  onSave,
+  saving,
+}) {
   const [discount, setDiscount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("transfer");
   const [paymentStatus, setPaymentStatus] = useState("unpaid");
   const [notes, setNotes] = useState("");
   const [cashier, setCashier] = useState("");
 
-  const subtotal = items.reduce((s, i) => s + i.invoice_price * i.qty, 0);
-  const totalProduction = items.reduce(
-    (s, i) => s + i.production_cost * i.qty,
-    0,
-  );
+  const grandProduction = items.reduce((s, item) => {
+    const costs = itemCosts[item._id] ?? EMPTY_COSTS;
+    const accessories = itemAccessories[item._id] ?? [];
+    return (
+      s +
+      (computeTotalSewing(costs) +
+        computeAccessoriesTotal(accessories) +
+        computeFabricCost(costs)) *
+        item.qty
+    );
+  }, 0);
+
   const discountVal = Number(discount) || 0;
+  // If production costs filled, use them as the subtotal; otherwise fall back to 0
+  const subtotal = grandProduction;
   const finalTotal = subtotal - discountVal;
-  const margin = finalTotal - totalProduction;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1299,6 +2045,12 @@ function Step3Summary({ customer, items, formData, onBack, onSave, saving }) {
           const label =
             [styleName, fabricName, sizeName].filter(Boolean).join(" · ") ||
             "Item tanpa nama";
+          const costs = itemCosts[item._id] ?? EMPTY_COSTS;
+          const accessories = itemAccessories[item._id] ?? [];
+          const perUnit =
+            computeTotalSewing(costs) +
+            computeAccessoriesTotal(accessories) +
+            computeFabricCost(costs);
           return (
             <div
               key={item._id}
@@ -1323,22 +2075,9 @@ function Step3Summary({ customer, items, formData, onBack, onSave, saving }) {
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div>
                 {item.colorway && (
                   <div
-                    style={{
-                      fontSize: 11,
-                      color: "var(--color-text-muted)",
-                    }}
+                    style={{ fontSize: 11, color: "var(--color-text-muted)" }}
                   >
                     {item.colorway}
-                  </div>
-                )}
-                {item.accessories?.length > 0 && (
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "var(--color-text-muted)",
-                    }}
-                  >
-                    {item.accessories.length} aksesori
                   </div>
                 )}
               </div>
@@ -1346,11 +2085,82 @@ function Step3Summary({ customer, items, formData, onBack, onSave, saving }) {
                 <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
                   Qty: {item.qty}
                 </div>
+                {perUnit > 0 && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--color-warning)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {formatRupiah(perUnit * item.qty)}
+                  </div>
+                )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* totals */}
+      {grandProduction > 0 && (
+        <div
+          style={{
+            padding: "12px 14px",
+            borderRadius: "var(--radius-md)",
+            background: "var(--color-bg-subtle)",
+            border: "1px solid var(--color-border)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: 13,
+            }}
+          >
+            <span style={{ color: "var(--color-text-muted)" }}>
+              Total Biaya Produksi
+            </span>
+            <strong style={{ color: "var(--color-warning)" }}>
+              {formatRupiah(grandProduction)}
+            </strong>
+          </div>
+          {discountVal > 0 && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 13,
+              }}
+            >
+              <span style={{ color: "var(--color-text-muted)" }}>Diskon</span>
+              <strong style={{ color: "var(--color-danger)" }}>
+                - {formatRupiah(discountVal)}
+              </strong>
+            </div>
+          )}
+          {discountVal > 0 && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 14,
+                borderTop: "1px solid var(--color-border)",
+                paddingTop: 6,
+              }}
+            >
+              <span style={{ fontWeight: 700 }}>Total Akhir</span>
+              <strong style={{ color: "var(--color-primary)" }}>
+                {formatRupiah(finalTotal)}
+              </strong>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* payment */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -1367,7 +2177,6 @@ function Step3Summary({ customer, items, formData, onBack, onSave, saving }) {
           options={PAYMENT_STATUS_OPTIONS}
         />
       </div>
-
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <Input
           label='Diskon (Rp)'
@@ -1383,7 +2192,6 @@ function Step3Summary({ customer, items, formData, onBack, onSave, saving }) {
           onChange={(e) => setCashier(e.target.value)}
         />
       </div>
-
       <Textarea
         label='Catatan Pesanan'
         placeholder='Catatan tambahan...'
@@ -1447,11 +2255,62 @@ export default function NewOrderModal({ open, onClose, onSave }) {
   const toast = useToast();
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
 
+  // Production cost state — keyed by item._id
+  const [itemCosts, setItemCosts] = useState({});
+  const [itemAccessories, setItemAccessories] = useState({});
+
   const handleFormDataUpdate = (key, newItem) => {
-    setFormData((prev) => ({
+    setFormData((prev) => ({ ...prev, [key]: [...prev[key], newItem] }));
+  };
+
+  // When items change (step 2), rebuild cost maps to match current items
+  const handleItemsChange = (newItems) => {
+    setItems(newItems);
+    setItemCosts((prev) => {
+      const next = {};
+      newItems.forEach((item) => {
+        next[item._id] = prev[item._id] ?? { ...EMPTY_COSTS };
+      });
+      return next;
+    });
+    setItemAccessories((prev) => {
+      const next = {};
+      newItems.forEach((item) => {
+        next[item._id] =
+          prev[item._id] ??
+          item.accessories.map((a) => ({
+            accessory_id: a.accessory_id,
+            // Try to resolve name/unit from formData accessories
+            name:
+              formData.accessories.find(
+                (fd) => String(fd.id) === String(a.accessory_id),
+              )?.name ?? "",
+            unit:
+              formData.accessories.find(
+                (fd) => String(fd.id) === String(a.accessory_id),
+              )?.unit ?? "",
+            qty: a.qty ?? 1,
+            cost_price: a.cost_price ?? 0,
+            notes: a.notes ?? "",
+          }));
+      });
+      return next;
+    });
+  };
+
+  const handleCostsChange = (itemId, field, value) => {
+    setItemCosts((prev) => ({
       ...prev,
-      [key]: [...prev[key], newItem],
+      [itemId]: { ...(prev[itemId] ?? EMPTY_COSTS), [field]: value },
     }));
+  };
+
+  const handleAccessoriesChange = (itemId, accIdx, field, value) => {
+    setItemAccessories((prev) => {
+      const list = [...(prev[itemId] ?? [])];
+      list[accIdx] = { ...list[accIdx], [field]: value };
+      return { ...prev, [itemId]: list };
+    });
   };
 
   useEffect(() => {
@@ -1471,13 +2330,15 @@ export default function NewOrderModal({ open, onClose, onSave }) {
         setStep(1);
         setSelectedCustomer(null);
         setItems([]);
+        setItemCosts({});
+        setItemAccessories({});
       }, 300);
     }
   }, [open]);
 
   const handleClose = () => {
     if (items.length > 0) {
-      setCloseConfirmOpen(true); // buka dialog, jangan langsung close
+      setCloseConfirmOpen(true);
       return;
     }
     onClose();
@@ -1497,15 +2358,61 @@ export default function NewOrderModal({ open, onClose, onSave }) {
   }) => {
     setSaving(true);
     try {
+      // Build production cost breakdown per item
+      const productionBreakdowns = items.map((item) => {
+        const costs = itemCosts[item._id] ?? EMPTY_COSTS;
+        const accessories = itemAccessories[item._id] ?? [];
+        const sewingTotal = computeTotalSewing(costs);
+        const accTotal = computeAccessoriesTotal(accessories);
+        const fabricCost = computeFabricCost(costs);
+        const perUnit = sewingTotal + accTotal + fabricCost;
+        return {
+          _id: item._id,
+          productionCostPerUnit: perUnit,
+          breakdown: {
+            sewing: Number(costs.sewing) || 0,
+            buttonhole: Number(costs.buttonhole) || 0,
+            swir: Number(costs.swir) || 0,
+            assembly: Number(costs.assembly) || 0,
+            embroidery: Number(costs.embroidery) || 0,
+            platpack: Number(costs.platpack) || 0,
+            overhead: computeOverhead(costs),
+            fabric_price: Number(costs.fabric_price) || 0,
+            dying: Number(costs.dying) || 0,
+            pre_wash: Number(costs.pre_wash) || 0,
+            consumption_meter: Number(costs.consumption_meter) || 0,
+            total_fabric_cost: fabricCost,
+            accessories_total: accTotal,
+            accessories: accessories.map((a) => ({
+              accessory_id: a.accessory_id,
+              qty: Number(a.qty) || 1,
+              cost_price: Number(a.cost_price) || 0,
+            })),
+          },
+        };
+      });
+
+      // Merge production costs into items before sending
+      const itemsWithCosts = items.map((item) => {
+        const pb = productionBreakdowns.find((p) => p._id === item._id);
+        return {
+          ...item,
+          production_cost: pb?.productionCostPerUnit ?? 0,
+          invoice_price: pb?.productionCostPerUnit ?? 0,
+          productionBreakdown: pb?.breakdown ?? null,
+        };
+      });
+
       const result = await createOrder({
         customerId: selectedCustomer.id,
-        items,
+        items: itemsWithCosts,
         discount,
         paymentMethod,
         paymentStatus,
         notes,
         cashier,
       });
+
       toast.add({
         variant: "success",
         title: "Pesanan Dibuat",
@@ -1522,6 +2429,7 @@ export default function NewOrderModal({ open, onClose, onSave }) {
   const STEP_TITLES = [
     "Pilih Pelanggan",
     "Tambah Item Pesanan",
+    "Biaya Produksi",
     "Ringkasan & Simpan",
   ];
 
@@ -1531,13 +2439,13 @@ export default function NewOrderModal({ open, onClose, onSave }) {
         open={open}
         onClose={handleClose}
         title={STEP_TITLES[step - 1]}
-        size='lg'
+        size='xl'
         closeable={!saving}
         footer={null}
       >
         <StepIndicator step={step} />
 
-        {loadingFormData && step === 2 ? (
+        {loadingFormData && step >= 2 ? (
           <div
             style={{
               textAlign: "center",
@@ -1564,7 +2472,7 @@ export default function NewOrderModal({ open, onClose, onSave }) {
             {step === 2 && (
               <Step2Items
                 items={items}
-                onItemsChange={setItems}
+                onItemsChange={handleItemsChange}
                 formData={formData}
                 onFormDataUpdate={handleFormDataUpdate}
                 onNext={() => setStep(3)}
@@ -1572,11 +2480,25 @@ export default function NewOrderModal({ open, onClose, onSave }) {
               />
             )}
             {step === 3 && (
-              <Step3Summary
+              <Step3ProductionCosts
+                items={items}
+                formData={formData}
+                itemCosts={itemCosts}
+                itemAccessories={itemAccessories}
+                onCostsChange={handleCostsChange}
+                onAccessoriesChange={handleAccessoriesChange}
+                onNext={() => setStep(4)}
+                onBack={() => setStep(2)}
+              />
+            )}
+            {step === 4 && (
+              <Step4Summary
                 customer={selectedCustomer}
                 items={items}
                 formData={formData}
-                onBack={() => setStep(2)}
+                itemCosts={itemCosts}
+                itemAccessories={itemAccessories}
+                onBack={() => setStep(3)}
                 onSave={handleSave}
                 saving={saving}
               />

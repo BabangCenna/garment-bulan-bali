@@ -53,7 +53,6 @@ export async function getOrders() {
     JOIN accessories a ON oia.accessory_id = a.id
   `);
 
-  // serialize all raw rows first
   const orders = serialize(ordersResult.rows);
   const items = serialize(itemsResult.rows);
   const accRows = serialize(accessoriesResult.rows);
@@ -91,7 +90,7 @@ export async function getOrders() {
     productionCost: o.production_cost,
     invoicePrice: o.invoice_price,
     invoiceLocked: o.invoice_locked === 1,
-    amountPaid: o.amount_paid, // ← add this
+    amountPaid: o.amount_paid,
     createdAt: o.created_at,
   }));
 }
@@ -119,6 +118,20 @@ export async function getOrderFormData() {
   };
 }
 
+/**
+ * createOrder — now also saves production cost breakdown in the same call.
+ *
+ * Each item can optionally carry a `productionBreakdown` object:
+ * {
+ *   sewing, buttonhole, swir, assembly, embroidery, platpack, overhead,
+ *   fabric_price, dying, pre_wash, consumption_meter,
+ *   total_fabric_cost, accessories_total,
+ *   accessories: [{ accessory_id, qty, cost_price }]
+ * }
+ *
+ * If productionBreakdown is present, the order goes straight to 'confirmed'.
+ * Otherwise it stays 'pending' as before.
+ */
 export async function createOrder({
   customerId,
   items,
@@ -129,19 +142,28 @@ export async function createOrder({
   cashier,
 }) {
   const code = generateOrderCode();
-  const subtotal = items.reduce((s, i) => s + i.invoice_price * i.qty, 0);
+
+  // Compute totals from production costs if provided, else from item fields
+  const subtotal = items.reduce(
+    (s, i) => s + (i.invoice_price || 0) * i.qty,
+    0,
+  );
   const productionCost = items.reduce(
-    (s, i) => s + i.production_cost * i.qty,
+    (s, i) => s + (i.production_cost || 0) * i.qty,
     0,
   );
   const discountVal = Number(discount) || 0;
   const finalTotal = subtotal - discountVal;
 
+  // If any item has a breakdown, order is auto-confirmed
+  const hasBreakdowns = items.some((i) => i.productionBreakdown != null);
+  const initialStatus = hasBreakdowns ? "confirmed" : "pending";
+
   const result = await db.execute({
     sql: `INSERT INTO orders
             (code, customer_id, subtotal, discount, final_total, production_cost,
-             invoice_price, payment_method, payment_status, notes, cashier, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+             invoice_price, payment_method, payment_status, status, notes, cashier, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
     args: [
       code,
       customerId,
@@ -152,6 +174,7 @@ export async function createOrder({
       subtotal,
       paymentMethod || "cash",
       paymentStatus || "unpaid",
+      initialStatus,
       notes || null,
       cashier || null,
     ],
@@ -161,6 +184,7 @@ export async function createOrder({
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
+
     const itemResult = await db.execute({
       sql: `INSERT INTO order_items
               (order_id, style_id, fabric_id, size_id, size_marker, weight,
@@ -186,6 +210,7 @@ export async function createOrder({
 
     const orderItemId = Number(itemResult.lastInsertRowid);
 
+    // ── Insert accessories ────────────────────────────────────────
     if (item.accessories?.length) {
       for (const acc of item.accessories) {
         await db.execute({
@@ -202,8 +227,62 @@ export async function createOrder({
         });
       }
     }
+
+    // ── Save production cost breakdown (if provided) ──────────────
+    if (item.productionBreakdown) {
+      const bd = item.productionBreakdown;
+      await db.execute({
+        sql: `INSERT INTO order_item_costs
+                (order_item_id, sewing, buttonhole, swir, assembly, embroidery,
+                 platpack, overhead, fabric_price, dying, prewash, consumption_meter, total_fabric_cost)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(order_item_id) DO UPDATE SET
+                sewing            = excluded.sewing,
+                buttonhole        = excluded.buttonhole,
+                swir              = excluded.swir,
+                assembly          = excluded.assembly,
+                embroidery        = excluded.embroidery,
+                platpack          = excluded.platpack,
+                overhead          = excluded.overhead,
+                fabric_price      = excluded.fabric_price,
+                dying             = excluded.dying,
+                prewash           = excluded.prewash,
+                consumption_meter = excluded.consumption_meter,
+                total_fabric_cost = excluded.total_fabric_cost,
+                updated_at        = datetime('now')`,
+        args: [
+          orderItemId,
+          bd.sewing || 0,
+          bd.buttonhole || 0,
+          bd.swir || 0,
+          bd.assembly || 0,
+          bd.embroidery || 0,
+          bd.platpack || 0,
+          bd.overhead || 0,
+          bd.fabric_price || 0,
+          bd.dying || 0,
+          bd.pre_wash || 0,
+          bd.consumption_meter || 0,
+          bd.total_fabric_cost || 0,
+        ],
+      });
+
+      // Update accessory costs from breakdown (qty/cost_price may have been adjusted in step 3)
+      if (bd.accessories?.length) {
+        for (const acc of bd.accessories) {
+          // Match by accessory_id within this order item
+          await db.execute({
+            sql: `UPDATE order_item_accessories
+                  SET qty = ?, cost_price = ?
+                  WHERE order_item_id = ? AND accessory_id = ?`,
+            args: [acc.qty, acc.cost_price, orderItemId, acc.accessory_id],
+          });
+        }
+      }
+    }
   }
 
+  // ── Update customer stats ─────────────────────────────────────────
   await db.execute({
     sql: `UPDATE customers
           SET total_orders = total_orders + 1,
@@ -214,6 +293,7 @@ export async function createOrder({
     args: [finalTotal, Math.floor(finalTotal / 1000), customerId],
   });
 
+  // ── Return the saved order + items ───────────────────────────────
   const orderRow = await db.execute({
     sql: `SELECT o.*,
                  c.name    AS customer_name,
@@ -279,13 +359,11 @@ export async function saveProductionCosts({ orderId, items }) {
   for (const item of items) {
     const { productionCost, breakdown, itemId } = item;
 
-    // update production_cost on order_items
     await db.execute({
       sql: `UPDATE order_items SET production_cost = ?, invoice_price = ?, updated_at = datetime('now') WHERE id = ?`,
       args: [productionCost, item.invoicePrice, itemId],
     });
 
-    // upsert full breakdown into order_item_costs
     await db.execute({
       sql: `INSERT INTO order_item_costs
         (order_item_id, sewing, buttonhole, swir, assembly, embroidery,
@@ -316,13 +394,12 @@ export async function saveProductionCosts({ orderId, items }) {
         breakdown.overhead || 0,
         breakdown.fabric_price || 0,
         breakdown.dying || 0,
-        breakdown.pre_wash || 0, // JS key stays pre_wash, maps to prewash column
+        breakdown.pre_wash || 0,
         breakdown.consumption_meter || 0,
         breakdown.total_fabric_cost || 0,
       ],
     });
 
-    // update accessories qty/cost_price if they were edited in the modal
     if (breakdown.accessories?.length) {
       for (const acc of breakdown.accessories) {
         await db.execute({
@@ -401,8 +478,7 @@ export async function createStyle(name) {
     sql: `INSERT INTO styles (name, status) VALUES (?, 1)`,
     args: [name],
   });
-  const id = Number(result.lastInsertRowid);
-  return { value: String(id), label: name };
+  return { value: String(Number(result.lastInsertRowid)), label: name };
 }
 
 // ── Fabrics ───────────────────────────────────────────────────────
@@ -422,8 +498,7 @@ export async function createFabric(name) {
     sql: `INSERT INTO fabrics (name, status) VALUES (?, 1)`,
     args: [name],
   });
-  const id = Number(result.lastInsertRowid);
-  return { value: String(id), label: name };
+  return { value: String(Number(result.lastInsertRowid)), label: name };
 }
 
 // ── Sizes ─────────────────────────────────────────────────────────
@@ -443,6 +518,5 @@ export async function createSize(name) {
     sql: `INSERT INTO sizes (name, status, sort_order) VALUES (?, 1, 999)`,
     args: [name],
   });
-  const id = Number(result.lastInsertRowid);
-  return { value: String(id), label: name };
+  return { value: String(Number(result.lastInsertRowid)), label: name };
 }
