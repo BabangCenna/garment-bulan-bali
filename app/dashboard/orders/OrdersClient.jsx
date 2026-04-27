@@ -89,7 +89,17 @@ export default function OrdersClient({ user, initialOrders }) {
   };
 
   // ── handlers ──────────────────────────────────────────────────
-  const handleNewOrder = ({ order, items }) => {
+  const handleNewOrder = ({ order, items, formData }) => {
+    const enrichedItems = items.map((item) => ({
+      ...item,
+      style_name:
+        formData.styles.find((s) => s.id === item.style_id)?.name ?? null,
+      fabric_name:
+        formData.fabrics.find((f) => f.id === item.fabric_id)?.name ?? null,
+      size_name:
+        formData.sizes.find((s) => s.id === item.size_id)?.name ?? null,
+      accessories: [],
+    }));
     setOrders((prev) => [
       {
         ...order,
@@ -100,7 +110,7 @@ export default function OrdersClient({ user, initialOrders }) {
           address: order.customer_address,
           email: order.customer_email,
         },
-        items,
+        items: enrichedItems,
         finalTotal: order.final_total,
         paymentMethod: order.payment_method,
         paymentStatus: order.payment_status,
@@ -132,12 +142,19 @@ export default function OrdersClient({ user, initialOrders }) {
   const handleProductionConfirmed = ({
     orderId,
     grandProduction,
-    grandMargin,
+    grandInvoice,
   }) => {
     setOrders((prev) =>
       prev.map((o) =>
         o.id === orderId
-          ? { ...o, status: "confirmed", productionCost: grandProduction }
+          ? {
+              ...o,
+              status: "confirmed",
+              productionCost: grandProduction,
+              invoicePrice: grandInvoice,
+              finalTotal: grandInvoice, // ← this is what PaymentModal reads
+              subtotal: grandInvoice,
+            }
           : o,
       ),
     );

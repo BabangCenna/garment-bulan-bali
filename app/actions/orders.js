@@ -48,7 +48,7 @@ export async function getOrders() {
   `);
 
   const accessoriesResult = await db.execute(`
-    SELECT oia.*, a.name AS accessory_name, a.unit
+    SELECT oia.*, a.name, a.unit
     FROM order_item_accessories oia
     JOIN accessories a ON oia.accessory_id = a.id
   `);
@@ -279,27 +279,32 @@ export async function saveProductionCosts({ orderId, items }) {
   for (const item of items) {
     const { productionCost, breakdown, itemId } = item;
 
-    // update production_cost total on order_items
+    // update production_cost on order_items
     await db.execute({
-      sql: `UPDATE order_items 
-            SET production_cost = ?, updated_at = datetime('now') 
-            WHERE id = ?`,
-      args: [productionCost, itemId],
+      sql: `UPDATE order_items SET production_cost = ?, invoice_price = ?, updated_at = datetime('now') WHERE id = ?`,
+      args: [productionCost, item.invoicePrice, itemId],
     });
 
-    // upsert breakdown into order_item_costs
+    // upsert full breakdown into order_item_costs
     await db.execute({
-      sql: `INSERT INTO order_item_costs 
-              (order_item_id, sewing, buttonhole, swir, assembly, embroidery, prewash)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(order_item_id) DO UPDATE SET
-              sewing     = excluded.sewing,
-              buttonhole = excluded.buttonhole,
-              swir       = excluded.swir,
-              assembly   = excluded.assembly,
-              embroidery = excluded.embroidery,
-              prewash    = excluded.prewash,
-              updated_at = datetime('now')`,
+      sql: `INSERT INTO order_item_costs
+        (order_item_id, sewing, buttonhole, swir, assembly, embroidery,
+         platpack, overhead, fabric_price, dying, prewash, consumption_meter, total_fabric_cost)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(order_item_id) DO UPDATE SET
+        sewing            = excluded.sewing,
+        buttonhole        = excluded.buttonhole,
+        swir              = excluded.swir,
+        assembly          = excluded.assembly,
+        embroidery        = excluded.embroidery,
+        platpack          = excluded.platpack,
+        overhead          = excluded.overhead,
+        fabric_price      = excluded.fabric_price,
+        dying             = excluded.dying,
+        prewash           = excluded.prewash,
+        consumption_meter = excluded.consumption_meter,
+        total_fabric_cost = excluded.total_fabric_cost,
+        updated_at        = datetime('now')`,
       args: [
         itemId,
         breakdown.sewing || 0,
@@ -307,23 +312,46 @@ export async function saveProductionCosts({ orderId, items }) {
         breakdown.swir || 0,
         breakdown.assembly || 0,
         breakdown.embroidery || 0,
-        breakdown.prewash || 0,
+        breakdown.platpack || 0,
+        breakdown.overhead || 0,
+        breakdown.fabric_price || 0,
+        breakdown.dying || 0,
+        breakdown.pre_wash || 0, // JS key stays pre_wash, maps to prewash column
+        breakdown.consumption_meter || 0,
+        breakdown.total_fabric_cost || 0,
       ],
     });
+
+    // update accessories qty/cost_price if they were edited in the modal
+    if (breakdown.accessories?.length) {
+      for (const acc of breakdown.accessories) {
+        await db.execute({
+          sql: `UPDATE order_item_accessories SET qty = ?, cost_price = ? WHERE id = ?`,
+          args: [acc.qty, acc.cost_price, acc.id],
+        });
+      }
+    }
   }
 
-  // recalculate order-level production_cost
-  const result = await db.execute({
-    sql: `SELECT SUM(production_cost * qty) as total FROM order_items WHERE order_id = ?`,
+  const totalsResult = await db.execute({
+    sql: `SELECT SUM(production_cost * qty) as total_prod,
+               SUM(invoice_price * qty)   as total_invoice
+        FROM order_items WHERE order_id = ?`,
     args: [orderId],
   });
-  const totalProduction = result.rows[0]?.total || 0;
+  const totalProduction = totalsResult.rows[0]?.total_prod || 0;
+  const totalInvoice = totalsResult.rows[0]?.total_invoice || 0;
 
   await db.execute({
     sql: `UPDATE orders 
-          SET status = 'confirmed', production_cost = ?, updated_at = datetime('now') 
-          WHERE id = ?`,
-    args: [totalProduction, orderId],
+        SET status          = 'confirmed',
+            production_cost = ?,
+            invoice_price   = ?,
+            subtotal        = ?,
+            final_total     = subtotal - discount,
+            updated_at      = datetime('now')
+        WHERE id = ?`,
+    args: [totalProduction, totalInvoice, totalInvoice, orderId],
   });
 
   revalidatePath("/dashboard/orders");

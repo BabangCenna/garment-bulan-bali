@@ -923,24 +923,7 @@ function ItemForm({ formData, onAdd, onCancel, toast, onFormDataUpdate }) {
           paddingTop: 8,
           borderTop: "1px solid var(--color-border)",
         }}
-      >
-        <span style={{ color: "var(--color-text-muted)" }}>
-          Produksi:{" "}
-          <strong>
-            {formatRupiah(
-              (Number(form.production_cost) || 0) * (Number(form.qty) || 1),
-            )}
-          </strong>
-        </span>
-        <span style={{ color: "var(--color-primary)" }}>
-          Invoice:{" "}
-          <strong>
-            {formatRupiah(
-              (Number(form.invoice_price) || 0) * (Number(form.qty) || 1),
-            )}
-          </strong>
-        </span>
-      </div>
+      ></div>
 
       <div style={{ display: "flex", gap: 8 }}>
         <Button variant='secondary' size='sm' onClick={onCancel}>
@@ -1133,23 +1116,6 @@ function Step2Items({
                   >
                     Qty: {item.qty}
                   </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: "var(--color-primary)",
-                    }}
-                  >
-                    {formatRupiah(item.invoice_price * item.qty)}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "var(--color-text-muted)",
-                    }}
-                  >
-                    Produksi: {formatRupiah(item.production_cost * item.qty)}
-                  </div>
                 </div>
                 <button
                   type='button'
@@ -1169,32 +1135,6 @@ function Step2Items({
               </div>
             );
           })}
-
-          {/* totals row */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 24,
-              padding: "10px 14px",
-              fontWeight: 700,
-              fontSize: 13,
-              borderTop: "2px solid var(--color-border)",
-            }}
-          >
-            <span style={{ color: "var(--color-text-muted)" }}>
-              Total Produksi:{" "}
-              <span style={{ color: "var(--color-text-primary)" }}>
-                {formatRupiah(totalProduction)}
-              </span>
-            </span>
-            <span style={{ color: "var(--color-text-muted)" }}>
-              Total Invoice:{" "}
-              <span style={{ color: "var(--color-primary)" }}>
-                {formatRupiah(totalInvoice)}
-              </span>
-            </span>
-          </div>
         </div>
       )}
 
@@ -1231,7 +1171,12 @@ function Step2Items({
         >
           <i
             className='fa-solid fa-box-open'
-            style={{ fontSize: 28, marginBottom: 10, display: "block" }}
+            style={{
+              fontSize: 28,
+              marginBottom: 10,
+              display: "block",
+              textAlign: "center",
+            }}
           />
           Belum ada item
         </div>
@@ -1401,15 +1346,6 @@ function Step3Summary({ customer, items, formData, onBack, onSave, saving }) {
                 <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
                   Qty: {item.qty}
                 </div>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: "var(--color-primary)",
-                  }}
-                >
-                  {formatRupiah(item.invoice_price * item.qty)}
-                </div>
               </div>
             </div>
           );
@@ -1456,91 +1392,6 @@ function Step3Summary({ customer, items, formData, onBack, onSave, saving }) {
         rows={2}
         style={{ resize: "none" }}
       />
-
-      {/* totals */}
-      <div
-        style={{
-          padding: "14px 16px",
-          borderRadius: "var(--radius-md)",
-          border: "1px solid var(--color-border)",
-          background: "var(--color-bg-subtle)",
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-        }}
-      >
-        {[
-          {
-            label: "Subtotal Invoice",
-            value: formatRupiah(subtotal),
-            color: "var(--color-text-primary)",
-          },
-          {
-            label: "Total Biaya Produksi",
-            value: formatRupiah(totalProduction),
-            color: "var(--color-text-muted)",
-          },
-          {
-            label: "Diskon",
-            value: `- ${formatRupiah(discountVal)}`,
-            color: "var(--color-danger)",
-          },
-        ].map((row, i) => (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              fontSize: 13,
-            }}
-          >
-            <span style={{ color: "var(--color-text-muted)" }}>
-              {row.label}
-            </span>
-            <span style={{ color: row.color }}>{row.value}</span>
-          </div>
-        ))}
-        <div
-          style={{
-            height: 1,
-            background: "var(--color-border)",
-            margin: "4px 0",
-          }}
-        />
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            fontSize: 15,
-            fontWeight: 700,
-          }}
-        >
-          <span>Total Akhir</span>
-          <span style={{ color: "var(--color-primary)" }}>
-            {formatRupiah(finalTotal)}
-          </span>
-        </div>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            fontSize: 12,
-          }}
-        >
-          <span style={{ color: "var(--color-text-muted)" }}>
-            Estimasi Margin
-          </span>
-          <span
-            style={{
-              color:
-                margin >= 0 ? "var(--color-success)" : "var(--color-danger)",
-              fontWeight: 600,
-            }}
-          >
-            {formatRupiah(margin)}
-          </span>
-        </div>
-      </div>
 
       <div
         style={{
@@ -1660,7 +1511,7 @@ export default function NewOrderModal({ open, onClose, onSave }) {
         title: "Pesanan Dibuat",
         message: `${result.code} berhasil disimpan.`,
       });
-      onSave({ order: result.order, items: result.items });
+      onSave({ order: result.order, items: result.items, formData });
       onClose();
     } catch {
       toast.add({ variant: "danger", message: "Gagal menyimpan pesanan." });
